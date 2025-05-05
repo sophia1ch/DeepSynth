@@ -82,7 +82,7 @@ python unit_tests_predictions.py
 # Only if you installed ray
 python unit_tests_parallel.py
 ```
-
+conda activate deep_synth_310
 ### File structure
 
 ```bash

@@ -41,7 +41,7 @@ class RulesPredictor(nn.Module):
         self.latent_encoder = latent_encoder
 
         # Guess output size of NN
-        H = IOEncoder.output_dimension * self.IOEmbedder.output_dimension
+        H = IOEmbedder.output_dimension
         output_size = guess_output_size(latent_encoder, H)
 
         self.loss = torch.nn.BCELoss(reduction='mean')

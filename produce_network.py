@@ -2,136 +2,118 @@ import torch
 import logging
 import argparse
 import matplotlib.pyplot as plt
+from types import SimpleNamespace
 
-import deepcoder_dataset_loader
-from type_system import Arrow, List, INT
-from Predictions.IOencodings import FixedSizeEncoding
+import pickle
+from pathlib import Path
+from Predictions.IOencodings import ZendoStructureEncoding
 from Predictions.models import RulesPredictor, BigramsPredictor
 from Predictions.dataset_sampler import Dataset
+from Predictions.embeddings import ZendoRNNEmbedding
+from Predictions.models import RulesPredictor
+from type_system import Arrow, List, INT
+from model_loader import get_model_name
+from zendo_config import cfg
 
-logging_levels = {0:logging.INFO, 1:logging.DEBUG}
+logging_levels = {0: logging.INFO, 1: logging.DEBUG}
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--verbose', '-v', dest='verbose', default=0)
-args,unknown = parser.parse_known_args()
+args, unknown = parser.parse_known_args()
 
 verbosity = int(args.verbose)
 logging.basicConfig(format='%(message)s', level=logging_levels[verbosity])
 
-from model_loader import build_deepcoder_generic_model, build_deepcoder_intlist_model, build_dreamcoder_intlist_model, build_flashfill_generic_model, get_model_name
+## HYPERPARAMETERS
 
+dataset_name = "zendo"
+type_request = None  # For Zendo, we use None for generic models
+dataset_size: int = 10000
+nb_epochs: int = 20
+batch_size: int = 16  # smaller batch size due to complex structures
 
-## HYPERPARMETERS
+############################
+#### LOAD ZENDO DATASET ####
+############################
 
-dataset_name = "dreamcoder"
-# dataset_name = "deepcoder"
-# dataset_name = "flashfill"
+def load_zendo_dataset(pkl_path="zendo_dataset/zendo_dataset.pkl", program_path="zendo_dataset/zendo_programs.pkl"):
+    with open(pkl_path, "rb") as f:
+        tasks = pickle.load(f)
+    with open(program_path, "rb") as f:
+        programs = pickle.load(f)
+    return tasks, programs
 
-# Set to None for model invariant of type request
-type_request = Arrow(List(INT), List(INT))
-# type_request = None
+tasks, programs = load_zendo_dataset()
 
-dataset_size: int = 10_000
-nb_epochs: int = 1
-batch_size: int = 128
+## MODEL INIT
+base_symbols = ["red", "blue", "yellow", "pyramid", "wedge", "block", "upright", "flat", "upside_down", "cheesecake", "vertical"]
+max_objects = 7
 
-## TRAINING
+IOEncoder = ZendoStructureEncoding(lexicon=base_symbols, max_objects=max_objects)
 
-if dataset_name == "dreamcoder":
-    cur_dsl, cfg, model = build_dreamcoder_intlist_model()
-elif dataset_name == "deepcoder":
-    if type_request is None:
-        _, type_requests = deepcoder_dataset_loader.load_tasks("./deepcoder_dataset/T=3_test.json")
-        cur_dsl, cfg_dict, model = build_deepcoder_generic_model(type_requests)
-    else:
-        cur_dsl, cfg, model = build_deepcoder_intlist_model()
-elif dataset_name == "flashfill":
-    cur_dsl, cfg_dict, model = build_flashfill_generic_model()
-else:
-    assert False, f"Unrecognized dataset: {dataset_name}"
+print("✅ Symbol count for embedding:", IOEncoder.lexicon_size)  # should now include ID_0–6, PAD, NONE
 
+IOEmbedder = ZendoRNNEmbedding(
+    IOEncoder=IOEncoder,
+    output_dimension=32,
+    size_hidden=64,
+    number_layers_RNN=1
+)
+latent_encoder = torch.nn.Sequential(
+    torch.nn.Linear(IOEmbedder.output_dimension, 64),
+    torch.nn.Sigmoid(),
+    torch.nn.Linear(64, 64),
+    torch.nn.Sigmoid()
+)
+
+model = RulesPredictor(
+    cfg=cfg,
+    IOEncoder=IOEncoder,
+    IOEmbedder=IOEmbedder,
+    latent_encoder=latent_encoder
+)
 
 print("Training model:", get_model_name(model), "on", dataset_name)
 print("Type Request:", type_request or "generic")
 
-if type_request:
-    nb_examples_max: int = 2
-else:
-    nb_examples_max: int = 5
+nb_examples_max: int = 10  # 5 positive + 5 negative examples
 
 ############################
 ######## TRAINING ##########
 ############################
 
-def train(model, dataset):
-    savename = get_model_name(model) + "_" + dataset_name + ".weights"
+def train(model, tasks, programs):
+    savename = get_model_name(model) + "_zendo.weights"
     for epoch in range(nb_epochs):
-        gen = dataset.__iter__()
-        for i in range(dataset_size // batch_size):
-            batch_IOs, batch_program, batch_requests = [], [], []
-            for _ in range(batch_size):
-                io, prog, _ , req= next(gen)
-                batch_IOs.append(io)
-                batch_program.append(prog)
-                batch_requests.append(req)
-            model.optimizer.zero_grad()
-            # print("batch_program", batch_program.size())
+        for i in range(0, len(tasks), batch_size):
+            batch_IOs = []
+            batch_programs = []
+            batch = tasks[i:i + batch_size]
+            for j, examples in enumerate(batch):
+                batch_IOs.append(examples)
+                batch_programs.append(programs[i + j])
             batch_predictions = model(batch_IOs)
-            # print("batch_predictions", batch_predictions.size())
-            if isinstance(model, RulesPredictor):
-                loss_value = model.loss(
-                    batch_predictions, torch.stack(batch_program))
-            elif isinstance(model, BigramsPredictor):
-                batch_grammars = model.reconstruct_grammars(
-                    batch_predictions, batch_requests)
-                loss_value = model.loss(
-                    batch_grammars, batch_program)
+            model.optimizer.zero_grad()
+            targets = torch.stack([
+                model.ProgramEncoder(program) for program in batch_programs
+            ])
+            loss_value = model.loss(batch_predictions, targets)
             loss_value.backward()
             model.optimizer.step()
-            print("\tminibatch: {}\t loss: {} metrics: {}".format(i, float(loss_value), model.metrics(loss=float(loss_value), batch_size=batch_size)))
+            print(f"Minibatch {i // batch_size}: loss={float(loss_value)}")
 
-        print("epoch: {}\t loss: {}".format(epoch, float(loss_value)))
+        print(f"Epoch {epoch}: loss={float(loss_value)}")
         torch.save(model.state_dict(), savename)
 
 def print_embedding(model):
     print(model.IOEmbedder.embedding.weight)
-    print([x for x in model.IOEmbedder.embedding.weight[:, 0]])
     x = [x.detach().numpy() for x in model.IOEmbedder.embedding.weight[:, 0]]
     y = [x.detach().numpy() for x in model.IOEmbedder.embedding.weight[:, 1]]
     label = [str(a) for a in model.IOEncoder.lexicon]
-    plt.plot(x,y, 'o')
+    plt.plot(x, y, 'o')
     for i, s in enumerate(label):
-        xx = x[i]
-        yy = y[i]
-        plt.annotate(s, (xx, yy), textcoords="offset points", xytext=(0,10), ha='center')
+        plt.annotate(s, (x[i], y[i]), textcoords="offset points", xytext=(0, 10), ha='center')
     plt.show()
 
-# def test():
-#     (batch_IOs, batch_program) = next(dataloader)
-#     batch_predictions = model(batch_IOs)
-#     batch_grammars = model.reconstruct_grammars(batch_predictions)
-#     for program, grammar in zip(batch_program, batch_grammars):
-#         # print("predicted grammar {}".format(grammar))
-#         print("intended program {}\nprobability {}".format(
-#             program, grammar.probability_program(model.cfg.start, program)))
-dataset = Dataset(
-    size=dataset_size,
-    dsl=cur_dsl,
-    pcfg_dict={type_request: cfg.CFG_to_Uniform_PCFG()} if type_request else {
-        t: cfg.CFG_to_Uniform_PCFG() for t, cfg in cfg_dict.items()},
-    nb_examples_max=nb_examples_max,
-    arguments={type_request: type_request.arguments()} if type_request else {
-        t: t.arguments() for t in cfg_dict.keys()},
-    # IOEncoder = IOEncoder,
-    # IOEmbedder = IOEmbedder,
-    ProgramEncoder=model.ProgramEncoder,
-    size_max=model.IOEncoder.size_max,
-    lexicon=model.IOEncoder.lexicon[:-2] if isinstance(
-        model.IOEncoder, FixedSizeEncoding) else model.IOEncoder.lexicon[:-4],
-    for_flashfill=dataset_name == "flashfill"
-)
-
-
-train(model, dataset)
-# test()
+train(model, tasks, programs)
 print_embedding(model)

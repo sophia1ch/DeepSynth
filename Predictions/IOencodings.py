@@ -189,3 +189,108 @@ class VariableSizeEncoding():
 
         res = torch.stack(res)
         return res
+
+class ZendoStructureEncoding:
+    def __init__(self, lexicon, max_objects):
+        """
+        :param lexicon: list of valid color/shape/orientation strings
+        :param max_objects: max number of pieces in one scene
+        """
+        self.max_objects = max_objects
+
+        self.directions = ["left", "right", "front", "back", "top", "bottom"]
+
+        # Automatically expand the lexicon
+        full_lexicon = lexicon + [f"ID_{i}" for i in range(max_objects)] + ["PAD", "NONE"]
+        self.symbolToIndex = {symbol: idx for idx, symbol in enumerate(full_lexicon)}
+        self.indexToSymbol = {idx: symbol for symbol, idx in self.symbolToIndex.items()}
+        self.lexicon_size = len(self.symbolToIndex)
+        self.lexicon = full_lexicon
+
+        # Set padding and fallback tokens
+        self.token_PAD = self.symbolToIndex["PAD"]
+        self.token_NONE = self.symbolToIndex["NONE"]
+
+        self.vector_length = (
+            1 +  # ID (as int)
+            1 +  # color
+            1 +  # shape
+            1 +  # orientation
+            6 +  # touching (6 directions)
+            1    # pointing
+        )
+        self.output_dimension = self.vector_length * self.max_objects
+
+
+    def encode_piece(self, piece, id_map):
+        vec = []
+
+        # Encode piece ID
+        idx = id_map.get(piece["ID"], -1)
+        symbolic_id = f"ID_{idx}" if idx >= 0 else "NONE"
+        vec.append(self.symbolToIndex.get(symbolic_id, self.token_NONE))
+
+        # Encode color, shape, orientation
+        for key in ["color", "shape", "orientation"]:
+            val = piece.get(key, "NONE")
+            vec.append(self.symbolToIndex.get(val, self.token_NONE))
+
+        # Encode touching (6 directions)
+        for dir in self.directions:
+            target_id = piece.get("touching", {}).get(dir, None)
+            if target_id and target_id in id_map:
+                symbolic_target = f"ID_{id_map[target_id]}"
+            else:
+                symbolic_target = "NONE"
+            vec.append(self.symbolToIndex.get(symbolic_target, self.token_NONE))
+
+        # Encode pointing
+        pointed_id = piece.get("pointing", "")
+        if pointed_id and pointed_id in id_map:
+            symbolic_pointed = f"ID_{id_map[pointed_id]}"
+        else:
+            symbolic_pointed = "NONE"
+        vec.append(self.symbolToIndex.get(symbolic_pointed, self.token_NONE))
+
+        # Final validation
+        for i, v in enumerate(vec):
+            if not isinstance(v, int) or v >= self.lexicon_size:
+                raise ValueError(f"🚨 Invalid token index {v} at position {i} in {vec}")
+        return torch.tensor(vec, dtype=torch.long)
+
+    def encode_structure(self, structure):
+        """
+        Encodes a full Zendo scene (list of pieces) into a tensor.
+        Pads to self.max_objects.
+        """
+        objects = structure["objects"]
+        id_map = {
+            obj['ID']: idx for idx, obj in enumerate(objects)
+        }
+
+
+        result = []
+
+        for i in range(self.max_objects):
+            if i < len(objects):
+                vec = self.encode_piece(objects[i], id_map)
+            else:
+                vec = torch.full((self.vector_length,), self.token_PAD, dtype=torch.long)
+            result.append(vec)
+
+        return torch.cat(result)
+
+    def encode_IO(self, IO):
+        """
+        IO = [input_structure_dict, label]
+        Output is a flat tensor
+        """
+        structure, label = IO
+        encoded_input = self.encode_structure(structure)
+        encoded_output = torch.tensor([label], dtype=torch.long)
+        return torch.cat([encoded_input, encoded_output])
+
+    def encode_IOs(self, IOs):
+        encoded = [self.encode_IO(io) for io in IOs]
+        tensor = torch.stack(encoded)
+        return tensor
