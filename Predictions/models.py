@@ -7,6 +7,7 @@ import copy
 from pcfg import PCFG
 from pcfg_logprob import LogProbPCFG
 from program import Function, Variable, BasicPrimitive, New
+from type_system import BOOL
 
 device = 'cpu'
 
@@ -14,8 +15,10 @@ device = 'cpu'
 def guess_output_size(latent_encoder, H):
     test_input = torch.zeros(H)
     with torch.no_grad():
+        print("guess_output_size: test_input", test_input.size())
         output = latent_encoder(test_input)
         output_size = output.size()[0]
+        print("guess_output_size: output", output.size())
     return output_size
 
 
@@ -42,7 +45,9 @@ class RulesPredictor(nn.Module):
 
         # Guess output size of NN
         H = IOEmbedder.output_dimension
+        print("IOEmbedder.output_dimension", H)
         output_size = guess_output_size(latent_encoder, H)
+        print("output_size", output_size)
 
         self.loss = torch.nn.BCELoss(reduction='mean')
 
@@ -54,11 +59,13 @@ class RulesPredictor(nn.Module):
             nn.Sigmoid(),
         )
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
+        print("RulesPredictor initialized with output dimension:", self.output_dimension)
 
     def metrics(self, **kwargs):
         return {}
 
     def init_RuleToIndex(self):
+        print("init RuleToIndex")
         self.output_dimension = 0
 
         index = 0
@@ -76,9 +83,7 @@ class RulesPredictor(nn.Module):
         batch_IOs is a tensor of size
         (batch_size, IOEncoder.output_dimension, IOEmbedder.output_dimension) 
         '''
-        # print("size of x", x.size())
         x = self.IOEmbedder.forward(batch_IOs)
-        # print("size of x", x.size())
         x = self.latent_encoder(x)
         # print("size of x", x.size())
         # x = torch.mean(x, -2)
@@ -89,6 +94,7 @@ class RulesPredictor(nn.Module):
         '''
         reconstructs the grammars
         '''
+        print("reconstructing grammars")
         res = []
         for x in batch_predictions:
             rules = {}
@@ -97,7 +103,7 @@ class RulesPredictor(nn.Module):
                 for P in self.cfg.rules[S]:
                     cpy_P = copy.deepcopy(P)
                     rules[S][cpy_P] = self.cfg.rules[S][P], \
-                        float(x[self.RuleToIndex[(S, P)]])
+                        float(x[0][self.RuleToIndex[(S, P)]])
             grammar = PCFG(
                 start=self.cfg.start,
                 rules=rules,
@@ -132,6 +138,7 @@ class RulesPredictor(nn.Module):
         return tensor
 
     def custom_collate(self, batch):
+        print("custom collate for RulesPredictor")
         return [batch[i][0] for i in range(len(batch))], torch.stack([batch[i][1] for i in range(len(batch))])
 
 

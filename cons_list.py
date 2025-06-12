@@ -9,13 +9,14 @@ def index(cons_list, i):
 
 def __index_tuple__(cons_list, i):
     try:
+        if len(cons_list) == 1:
+            cons_list = (cons_list, None)
         value, next_const_list = cons_list
         if i == 0:
             return value
         else:
             return __index_tuple__(next_const_list, i-1)
     except ValueError as e:
-        print(f"cons_list.py: cons_list is empty at i={i}!")
         return None
 
 def tuple2constlist(t, i = 0):

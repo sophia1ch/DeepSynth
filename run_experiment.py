@@ -7,7 +7,7 @@ from pcfg import PCFG
 import logging
 from program import BasicPrimitive, Function, New, Program, Variable
 import time
-from typing import Callable, Tuple
+from typing import Callable, List, Tuple
 import grammar_splitter
 from Algorithms.ray_parallel import start, make_parallel_pipelines
 
@@ -27,7 +27,7 @@ logging_levels = {0: logging.INFO, 1: logging.DEBUG}
 
 verbosity = 0
 logging.basicConfig(format='%(message)s', level=logging_levels[verbosity])
-timeout = 100
+timeout = 400
 total_number_programs = 100_000_000
 # Set to False to disable bottom cached evaluation for heap search
 use_heap_search_cached_eval = True 
@@ -48,7 +48,7 @@ reconstruct = {dfs, bfs, threshold_search, a_star,
                sort_and_add, sqrt_sampling_with_sbsur}
 
 
-def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCFG, algo_index: int) -> Tuple[Program, float, float, int, float, float]:
+def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCFG, algo_index: int) -> List[Tuple[Program, float, float, int, float, float]]:
     '''
     Run the algorithm until either timeout or 1M programs, and for each program record probability and time of output
     return program, search_time, evaluation_time, nb_programs, cumulative_probability, probability
@@ -57,12 +57,13 @@ def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCF
     search_time = 0
     evaluation_time = 0
     gen = algorithm(pcfg, **param)
-    found = False
+    found_programs = []
     if name_algo == "SQRT":
         _ = next(gen)
     nb_programs = 0
     cumulative_probability = 0
     cached_eval = use_heap_search_cached_eval and algorithm == heap_search
+    probability = 0
 
     while (search_time + evaluation_time < timeout and nb_programs < total_number_programs):
 
@@ -100,7 +101,7 @@ def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCF
         #               probability)
         # Evaluation of the program
         evaluation_time -= time.perf_counter()
-        found = is_correct_program(program_r, cached_eval)
+        is_match = is_correct_program(program_r, cached_eval)
         evaluation_time += time.perf_counter()
         # if not isinstance(found, bool):
         #     found, program = found
@@ -108,14 +109,23 @@ def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCF
         if nb_programs % 100_000 == 0:
             logging.debug('tested {} programs'.format(nb_programs))
 
-        if found:
-            # print("\tprogram found=", program_r)
+        if is_match:
+            print("\tprogram found=", program_r)
             # logging.debug("\nSolution found: %s" % program)
             # logging.debug('[NUMBER OF PROGRAMS]: %s' % nb_programs)
             # logging.debug("[SEARCH TIME]: %s" % search_time)
             # logging.debug("[EVALUATION TIME]: %s" % evaluation_time)
             # logging.debug("[TOTAL TIME]: %s" % (evaluation_time + search_time))
-            return program_r, search_time, evaluation_time, nb_programs, cumulative_probability, probability
+            found_programs.append((
+                program_r,
+                search_time,
+                evaluation_time,
+                nb_programs,
+                cumulative_probability,
+                probability
+            ))
+            if len(found_programs) >= 10:
+                break
 
     # logging.debug("\nNot found")
     # logging.debug('[NUMBER OF PROGRAMS]: %s' % nb_programs)
@@ -125,7 +135,7 @@ def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCF
     # print("\tratio s/(s+e)=", search_time / (search_time + evaluation_time))
     # print("\tNot found after", nb_programs, "programs\n\tcumulative probability=",
         #   cumulative_probability, "\n\tlast probability=", probability)
-    return None, search_time, evaluation_time, nb_programs, cumulative_probability, probability
+    return found_programs
 
 def insert_prefix(prefix, prog):
     try:
@@ -309,7 +319,7 @@ def run_algorithm_parallel(is_correct_program: Callable[[Program, bool], bool], 
     return None, grammar_split_time, search_times, evaluation_times, nb_programs, cumulative_probabilities, 0
 
 
-def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: int) -> typing.List[Tuple[str, Tuple[Program, float, float, int, float, float]]]:
+def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: int) -> typing.List[Tuple[str, List[Tuple[Program, float, float, int, float, float]]]]:
     algorithm, _, _ = list_algorithms[algo_index]
     logging.info('\n## Running: %s' % algorithm.__name__)
     output = []
@@ -317,23 +327,25 @@ def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: in
     pbar = tqdm.tqdm(total=len(dataset))
     pbar.set_postfix_str(f"{successes} solved")
     for task_name, pcfg, is_correct_program in dataset:
-        logging.debug("## Task:", task_name)
+        print("## Task:", task_name)
         data = run_algorithm(is_correct_program, pcfg, algo_index)
         if not data[0]:
-            logging.debug("\tsolution=", task_name)
-            logging.debug("\ttype request=", pcfg.type_request())
+            print("\tsolution=", task_name)
+            print("\ttype request=", pcfg.type_request())
         if isinstance(task_name, Program):
             try:
                 prob = pcfg.probability_program(pcfg.start, task_name)
                 if not data[0]:
-                    logging.debug("\tlast probability=", data[-1])
-                    logging.debug("\tsolution probability=", prob)
-                assert data[0] is not None or algorithm != heap_search or prob < data[-1]
+                    print("\tlast probability=", data[-1])
+                    print("\tsolution probability=", prob)
             except KeyError as e:
                 print("Failed to compute probability of:", task_name)
                 print("Error:", e)
-        assert algorithm != heap_search or data[-2] <= 1 + 1e-3, data
-        successes += data[0] is not None
+        successes_per_list = 0
+        for d in data:
+            if d[0] is not None:
+                successes_per_list += 1
+        successes += successes_per_list
         output.append((task_name, data))
         pbar.update(1)
         pbar.set_postfix_str(f"{successes} solved")

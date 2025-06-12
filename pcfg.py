@@ -42,10 +42,12 @@ class PCFG:
         self.max_program_depth = max_program_depth
 
         self.hash = hash(str(rules))
-
+        print("PCFG init")
         if clean:
+            print("Cleaning PCFG")
             self.remove_non_productive()
             self.remove_non_reachable()
+            self.remove_redundant_rules()
             self.normalise()
             self.sort()
 
@@ -120,7 +122,7 @@ class PCFG:
 
     def remove_non_productive(self):
         """
-        remove non-terminals which do not produce programs
+        Remove non-terminals which do not produce programs
         """
         new_rules = {}
         for S in reversed(self.rules):
@@ -135,6 +137,7 @@ class PCFG:
             if S in new_rules:
                 self.rules[S] = new_rules[S]
             else:
+                print("Removing non-productive non-terminal", S)
                 del self.rules[S]
 
     def remove_non_reachable(self):
@@ -147,6 +150,7 @@ class PCFG:
         reach = set()
         new_reach = set()
         reach.add(self.start)
+        print("start:", self.start, "max_program_depth:", self.max_program_depth)
 
         for i in range(self.max_program_depth):
             new_reach.clear()
@@ -161,7 +165,44 @@ class PCFG:
 
         for S in set(self.rules):
             if S not in reachable:
+                print("Removing non-reachable non-terminal", S)
                 del self.rules[S]
+
+    def remove_redundant_rules(self):
+        """
+        Removes semantically redundant or illogical rules like:
+        - (AND X X)
+        - (OR X X)
+        - (MORE_THAN X X)
+        - (EVEN_2 X X), (EXACTLY_2 n X X), etc.
+        """
+
+        redundant_functions = {"AND", "OR", "MORE_THAN", "EVEN_2", "ODD_2", "EXACTLY_2", "AT_LEAST_2"}
+
+        for S in list(self.rules.keys()):
+            new_entries = {}
+            for P, (args, w) in self.rules[S].items():
+                if isinstance(P, Function):
+                    fn = P.function
+                    args_ = P.arguments
+
+                    # BasicPrimitive name
+                    if isinstance(fn, BasicPrimitive) and fn.primitive in redundant_functions:
+                        # 2-argument functions with both arguments equal
+                        if len(args_) >= 2 and args_[0].typeless_eq(args_[1]):
+                            print(f"Removed redundant: {P}")
+                            continue  # skip redundant
+
+                # Also handle case where P is BasicPrimitive but will become Function later
+                elif isinstance(P, BasicPrimitive) and P.primitive in redundant_functions:
+                    # This may be curried later — skip only if all args match
+                    if len(args) >= 2 and all(args[0] == a for a in args):
+                        print(f"Removed redundant: {P}")
+                        continue  # redundant pattern
+
+                new_entries[P] = (args, w)
+
+            self.rules[S] = new_entries
 
     def compute_max_probability(self):
         """

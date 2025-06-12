@@ -1,6 +1,7 @@
 from program import BasicPrimitive, Function, Lambda, New, Variable
 
 def evaluation_from_compressed(program_compressed, dsl, environment, target_type):
+    print("Evaluating from compressed program:", program_compressed)
     stack = []
     (P, sub_program) = program_compressed
 
@@ -36,18 +37,21 @@ def evaluation_from_compressed(program_compressed, dsl, environment, target_type
     return stack.pop()
 
 def reconstruct_from_compressed(program, target_type):
+    print("Reconstructing from compressed program:", program)
     program_as_list = []
     list_from_compressed(program, program_as_list)
     program_as_list.reverse()
     return reconstruct_from_list(program_as_list, target_type)
 
 def list_from_compressed(program, program_as_list=None):
+    print("Listing from compressed program:", program)
     (P, sub_program) = program
     if sub_program:
         list_from_compressed(sub_program, program_as_list)
     program_as_list.append(P)
 
 def reconstruct_from_list(program_as_list, target_type):
+    print("Reconstructing from list:", program_as_list)
     if len(program_as_list) == 1:
         return program_as_list.pop()
     else:

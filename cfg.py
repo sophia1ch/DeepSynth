@@ -20,10 +20,11 @@ class CFG:
     for all programs appearing in rules
 
     '''
-    def __init__(self, start, rules, max_program_depth, clean=True):
+    def __init__(self, start, rules, max_program_depth, lookup, clean=True):
         self.start = start
         self.rules = rules
         self.max_program_depth = max_program_depth
+        self.lookup = lookup
 
         if clean:
             self.remove_non_productive()

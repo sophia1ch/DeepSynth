@@ -1,8 +1,8 @@
 from collections import deque
 import copy
 
-from type_system import Type, PolymorphicType, PrimitiveType, Arrow, List, UnknownType, INT, BOOL
-from program import Program, Function, Variable, BasicPrimitive, New
+from type_system import Arrow, List, INT, BOOL
+from program import Variable, BasicPrimitive, New
 from cfg import CFG
 
 from itertools import combinations_with_replacement
@@ -32,8 +32,16 @@ class DSL:
                 )
                 self.list_primitives.append(P)
             else:
+                print("Warning: primitive {} not found in semantics".format(p))
                 P = New(body=p.body, type_=primitive_types[p], probability={})
                 self.list_primitives.append(P)
+        for n in range(3):
+            name = f"constant_{n+1}"
+            self.semantics[name] = n+1
+            P = BasicPrimitive(name, type_=INT, constant_evaluation=n+1)
+            self.list_primitives.append(P)
+        self.primitive_lookup = {p.primitive: p for p in self.list_primitives}
+        print("DSL initialised with primitive types", self.primitive_lookup)
     
     def primitive_types(self):
         set_basic_types = set()
@@ -133,7 +141,9 @@ class DSL:
         Constructs a CFG from a DSL imposing bounds on size of the types
         and on the maximum program depth
         """
+        print("instantiate_polymorphic_types with upper_bound_type_size", upper_bound_type_size, self.list_primitives)
         self.instantiate_polymorphic_types(upper_bound_type_size)
+        print("After instantiation, list_primitives", self.list_primitives)
 
         if isinstance(type_request, Arrow):
             return_type = type_request.returns()
@@ -204,8 +214,9 @@ class DSL:
                         rules[non_terminal][P] = decorated_arguments_P
 
         return CFG(
-            start=(return_type, None, 0),
+            start=(BOOL, None, 0),
             rules=rules,
             max_program_depth=max_program_depth,
+            lookup=self.primitive_lookup,
             clean=True
         )

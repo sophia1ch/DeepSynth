@@ -1,3 +1,7 @@
+from DSL import zendo
+from cons_list import tuple2constlist
+from Predictions.IOencodings import ZendoFixedSizeEncoding
+from create_programs import convert_prolog_to_dsl
 import torch
 from type_system import INT, STRING, Arrow, Type
 import type_system
@@ -5,22 +9,35 @@ from Predictions.models import RulesPredictor, BigramsPredictor
 from pcfg import PCFG
 from typing import Callable, List, Tuple
 from dsl import DSL
-from program import Program
+from program import BasicPrimitive, Function, Program, Variable
 
 def make_program_checker(dsl: DSL, examples) -> Callable[[Program, bool], bool]:
     def checker(prog: Program, use_cached_evaluator: bool) -> bool:
+        if len(examples) <=1:
+            exit(1)
         if use_cached_evaluator:
             for i, example in enumerate(examples):
                 input, output = example
-                out = prog.eval(dsl, input, i)
+                out = prog.eval(
+                    dsl=dsl,
+                    environment=(input, None),
+                    i=i
+                )
                 if output != out:
                     return False
             return True
         else:
+            if len(examples) <=1:
+                exit(1)
             for example in examples:
                 input, output = example
-                out = prog.eval_naive(dsl, input)
+                out = prog.eval_naive(
+                    dsl=type("DSL", (), {"semantics": zendo.semantics}),
+                    environment=(input, None),
+                    i=i
+                )
                 if output != out:
+                    # print("False for: ", prog, "with input:", input, "and output:", output, "but got:", out)
                     return False
             return True
     return checker
@@ -34,14 +51,22 @@ def make_program_checker_with_constants(dsl: DSL, examples, constants) -> Callab
             if use_cached_evaluator:
                 for i, example in enumerate(examples):
                     input, output = example
-                    out = fixed_prog.eval(dsl, input, i)
+                    out = prog.eval(
+                        dsl=type("DSL", (), {"semantics": zendo.semantics}),
+                        environment=(input, None),
+                        i=i
+                    )
                     if output != out:
                         failed = True
                         break
             else:
                 for example in examples:
                     input, output = example
-                    out = fixed_prog.eval_naive(dsl, input)
+                    out = prog.eval_naive(
+                        dsl=type("DSL", (), {"semantics": zendo.semantics}),
+                        environment=(input, None),
+                        i=i
+                    )
                     if output != out:
                         failed = True
                         break
@@ -88,7 +113,90 @@ def task_set2dataset(tasks, model, dsl: DSL) -> List[Tuple[str, PCFG, Callable[[
             (name, grammar, make_program_checker_with_constants(dsl, examples, constants) if constants else make_program_checker(dsl, examples)))
     return dataset
 
+def task_set2zendodataset(tasks, model, dsl: DSL, cfg):
+    dataset = []
+    batch_IOs = []
+    batch_types = []
 
+    # Prepare batch
+    for task in tasks:
+        if len(task) == 3:
+            name, examples, constants = task
+        else:
+            name, examples = task
+            constants = None
+
+        # Pass the raw IO pairs directly: (structure, label)
+        ex = examples  # Keep as-is
+        batch_IOs.append(ex)
+
+        if isinstance(model, BigramsPredictor):
+            batch_types.append(__get_type_request(examples))
+
+    # Inference
+    try:
+        with torch.no_grad():
+            print("Starting Inference...")
+            # AT_LEAST_AND takes 3 arguments: INT, predicate1, predicate2, and a structure
+            rule_prog = Function(
+                BasicPrimitive("EVEN_2"),
+                [
+                    Function(BasicPrimitive("IS_BLOCK"), []),
+                    Function(BasicPrimitive("IS_BLUE"), []),
+                ]
+            )
+            structure = torch.stack([torch.tensor([0, 1, 0, 1, 8, 1, 8, 8, 8, 8, 8, 293, 348, 193, 298], dtype=torch.long),
+                                      torch.tensor([1, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 331, 398, 234, 305], dtype=torch.long),
+                                      torch.tensor([2, 2, 0, 1, 8, 8, 8, 8, 8, 8, 8, 331, 398, 234, 305], dtype=torch.long),
+                                      torch.tensor([3, 2, 2, 2, 8, 8, 8, 8, 8, 8, 8, 331, 398, 234, 305], dtype=torch.long),
+                                      torch.tensor([7, 3, 3, 4, 7, 7, 7, 7, 7, 7, 7, -1, -1, -1, -1], dtype=torch.long),
+                                      torch.tensor([7, 3, 3, 4, 7, 7, 7, 7, 7, 7, 7, -1, -1, -1, -1], dtype=torch.long),
+                                      torch.tensor([7, 3, 3, 4, 7, 7, 7, 7, 7, 7, 7, -1, -1, -1, -1], dtype=torch.long)])
+            result = rule_prog.eval(
+                dsl=type("DSL", (), {"semantics": zendo.semantics}),
+                environment=(structure, None),
+                i=0
+            )
+            print("Result of rule_prog.eval:", result, result(structure))
+            grammars = model(batch_IOs)
+    except AssertionError as e:
+        print("experiment_helper.py: task_set2dataset: An error occurred while generating grammars:\n\t", e)
+        return []
+
+    # Reconstruction
+    if isinstance(model, RulesPredictor):
+        print("Reconstructing grammars with RulesPredictor...")
+        grammars = model.reconstruct_grammars(grammars)
+    if isinstance(model, BigramsPredictor):
+        grammars = model.reconstruct_grammars(
+            grammars, batch_types, tensors=False)
+        grammars = [g.normalise() for g in grammars]
+
+    # To dataset
+    for i, grammar in enumerate(grammars):
+        name = tasks[i][0]
+        print(name)
+        program = convert_prolog_to_dsl(name, cfg)
+        examples = tasks[i][1]
+        #ex = tuple2constlist(examples)
+        constants = None if len(tasks[i]) < 3 else tasks[i][2]
+
+        checker_fn = (
+            make_program_checker_with_constants(dsl, examples, constants)
+            if constants else
+            make_program_checker(dsl, examples)
+        )
+
+        dataset.append((program, grammar, checker_fn))
+    print("task_set2zendodataset: dataset prepared with", len(dataset), "tasks.")
+    return dataset
+
+def to_cons_list(tensor):
+    cons = None
+    for i in reversed(range(tensor.shape[0])):
+        cons = (tensor[i], cons)
+    return cons
+    
 def task_set2uniform_dataset(tasks, dsl: DSL, max_program_depth: int = 4) -> List[Tuple[str, PCFG, Callable[[Program, bool], bool]]]:
     dataset = []
     # Prepare batch
@@ -162,6 +270,7 @@ def __get_type__(el) -> Type:
 
 
 def __get_type_request(examples):
+    print("experiment_helper.py: __get_type_request called with examples:", examples[0])
     input, output = examples[0]
     type_req = __get_type__(output)
     for el in input[:-1][::-1]:

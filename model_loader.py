@@ -1,13 +1,14 @@
 import os
 import typing
+from experiment_helper import __get_type_request
 import torch
-from type_system import INT, STRING, Arrow, List, Type
+from type_system import BOOL, INT, STRING, Arrow, List, Type
 from typing import Dict, Set, Tuple
 from cfg import CFG
 import dsl
-from DSL import list, deepcoder, flashfill
-from Predictions.IOencodings import FixedSizeEncoding
-from Predictions.embeddings import RNNEmbedding, SimpleEmbedding
+from DSL import list, deepcoder, flashfill, zendo
+from Predictions.IOencodings import FixedSizeEncoding, ZendoFixedSizeEncoding
+from Predictions.embeddings import RNNEmbedding, RNNMatrixEmbedding, SimpleEmbedding
 from Predictions.models import RulesPredictor, BigramsPredictor, NNDictRulesPredictor
 
 
@@ -100,6 +101,44 @@ def __buildintlist_model(dsl: dsl.DSL, max_program_depth: int, nb_arguments_max:
         latent_encoder=latent_encoder,
     )
 
+
+    return cfg, model
+
+def __buildintlist_zendo_model(dsl: dsl.DSL, max_program_depth: int, size_max: int, size_hidden: int, embedding_output_dimension: int, number_layers_RNN: int, autoload=False) -> Tuple[CFG, RulesPredictor]:
+    type_request = Arrow(List(zendo.PIECE), BOOL)
+    print("Type request:", type_request)
+    cfg = dsl.DSL_to_CFG(
+        type_request, max_program_depth=max_program_depth)
+
+    IOEncoder = ZendoFixedSizeEncoding(
+        size_max=11,
+        lexicon=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    )
+
+    IOEmbedder = RNNMatrixEmbedding(
+        IOEncoder=IOEncoder,
+        output_dimension=embedding_output_dimension,
+        size_hidden=size_hidden,
+        number_layers_RNN=number_layers_RNN,
+    )
+
+    latent_encoder = torch.nn.Sequential(
+        __block__(IOEncoder.output_dimension, size_hidden, torch.nn.Sigmoid()),
+        __block__(size_hidden, size_hidden, torch.nn.Sigmoid()),
+    )
+
+    model = RulesPredictor(
+        cfg=cfg,
+        IOEncoder=IOEncoder,
+        IOEmbedder=IOEmbedder,
+        latent_encoder=latent_encoder,
+    )
+
+    if autoload:
+        weights_file = "variable+rnn+rules_zendo.weights"
+        if os.path.exists(weights_file):
+            model.load_state_dict(torch.load(weights_file))
+            print("Loaded weights.")
 
     return cfg, model
 

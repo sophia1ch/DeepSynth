@@ -171,6 +171,8 @@ class Function(Program):
                     evaluated_arguments.append(e)
                 result = self.function.eval(dsl, environment, i)
                 for evaluated_arg in evaluated_arguments:
+                    if not callable(result):
+                        raise TypeError(f"Trying to apply non-callable: {result} with arg: {evaluated_arg}")
                     result = result(evaluated_arg)
                 self.evaluation[i] = result
                 return result

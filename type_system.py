@@ -202,7 +202,10 @@ class PrimitiveType(Type):
         return format(self.type)
 
 class Arrow(Type):
-    def __init__(self, type_in, type_out):
+    def __init__(self, type_in, type_out, extra=None):
+        
+        if extra is not None:
+            raise ValueError("extra is not supported in Arrow")
         assert(isinstance(type_in,Type))
         assert(isinstance(type_out,Type))
         self.type_in = type_in
