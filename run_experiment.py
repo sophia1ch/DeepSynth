@@ -329,14 +329,13 @@ def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: in
     for task_name, pcfg, is_correct_program in dataset:
         print("## Task:", task_name)
         data = run_algorithm(is_correct_program, pcfg, algo_index)
-        if not data[0]:
+        if not data:
             print("\tsolution=", task_name)
             print("\ttype request=", pcfg.type_request())
         if isinstance(task_name, Program):
             try:
                 prob = pcfg.probability_program(pcfg.start, task_name)
-                if not data[0]:
-                    print("\tlast probability=", data[-1])
+                if not data:
                     print("\tsolution probability=", prob)
             except KeyError as e:
                 print("Failed to compute probability of:", task_name)
