@@ -43,6 +43,7 @@ rule_to_examples = defaultdict(list)
 
 # Step 1: collect all scenes and group them by rule
 data_root = Path("../Master_thesis")
+
 for data_dir in data_dirs:
     csv_file = Path(data_dir) / "ground_truth.csv"
     csv_path = data_root / csv_file

@@ -105,7 +105,7 @@ for rule_text, examples in task_list.items():
         continue
     task_examples = positives + negatives  # each is (tensor, label, query)
     rule_query = task_examples[0][2]
-    tasks.append([rule_query, [(tensor, label) for (tensor, label, _) in task_examples]])
+    tasks.append([(tensor, label) for (tensor, label, _) in task_examples])
     programs.append(rule_query)
 
 print(f"Prepared {len(tasks)} tasks.", programs)
