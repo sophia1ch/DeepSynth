@@ -119,17 +119,20 @@ def even():
 
 def even_1(pred):
     def inner(structure):
-        return count_unary_predicate(pred, structure) % 2 == 0
+        count = count_unary_predicate(pred, structure)
+        return count != 0 and count % 2 == 0
     return inner
 
 def even_2(pred1, pred2):
     def inner(structure):
-        return count_conjunctive_unary_predicates(pred1, pred2, structure) % 2 == 0
+        count = count_conjunctive_unary_predicates(pred1, pred2, structure)
+        return count != 0 and count % 2 == 0
     return inner
 
 def even_interaction(pred):
     def inner(structure):
-        return count_interaction_predicate(pred, structure) % 2 == 0
+        count = count_interaction_predicate(pred, structure)
+        return count != 0 and count % 2 == 0
     return inner
 
 def odd():
