@@ -49,7 +49,7 @@ for algo_index in range(len(list_algorithms)):
 
         print(f"Running {algo_name} with {splits} CPUs...")
         data = gather_data(dataset, 0)
-        col_names = ["task_name", "program", "grammar_split_time", "search_time", "evaluation_time",
+        col_names = ["task_name", "program", "search_time", "evaluation_time",
                      "nb_programs", "cumulative_probability", "probability"]
 
         processed_data = []
