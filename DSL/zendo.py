@@ -82,6 +82,9 @@ def has_shape_idx(shape_idx):
 def has_orient_idx(orient_idx):
     return lambda piece: piece[ORIENT_IDX].item() == orient_idx
 
+def or_pred(pred1, pred2):
+    return lambda piece: pred1(piece) or pred2(piece)
+
 def at_least_1(n, pred):
     def inner(structure):
         return count_unary_predicate(pred, structure) >= n
@@ -300,6 +303,8 @@ semantics = {
     'IS_UPSIDE_DOWN': has_orient_idx(1),
     'IS_FLAT': has_orient_idx(2),
     'IS_CHEESECAKE': has_orient_idx(3),
+    'IS_VERTICAL': or_pred(has_orient_idx(0), has_orient_idx(1)),
+    'IS_HORIZONTAL': or_pred(has_orient_idx(2), has_orient_idx(3)),
 }
 
 # ---- DSL Type Signatures ----
@@ -320,6 +325,8 @@ primitive_types = {
     "IS_FLAT": UNARY_PRED,
     "IS_UPSIDE_DOWN": UNARY_PRED,
     "IS_CHEESECAKE": UNARY_PRED,
+    "IS_HORIZONTAL": UNARY_PRED,
+    "IS_VERTICAL": UNARY_PRED,
 
     # Composed unary rules
     "AT_LEAST_1": Arrow(INT, Arrow(UNARY_PRED, RULE)),
