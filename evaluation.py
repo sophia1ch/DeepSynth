@@ -58,6 +58,47 @@ def extract_subprograms(expr):
         return sub_exprs
     else:
         return [expr.strip()]
+    
+
+def extract_interaction_subprograms(expr):
+    """
+    Extract subprograms like (TOUCHING A B), (POINTING A B), etc.
+    from inside the full DSL expression.
+    """
+    interaction_keywords = {"TOUCHING", "POINTING", "ON_TOP_OF"}
+    tokens = tokenize(expr)
+    idx = 0
+    results = []
+
+    def parse():
+        nonlocal idx
+        if tokens[idx] == '(':
+            idx += 1
+            if idx < len(tokens):
+                func = tokens[idx]
+                if func in interaction_keywords:
+                    start = idx - 1  # include the opening '('
+                    depth = 1
+                    idx += 1
+                    while idx < len(tokens) and depth > 0:
+                        if tokens[idx] == '(':
+                            depth += 1
+                        elif tokens[idx] == ')':
+                            depth -= 1
+                        idx += 1
+                    results.append(' '.join(tokens[start:idx]))
+                else:
+                    idx += 1
+                    while idx < len(tokens) and tokens[idx] != ')':
+                        parse()
+                    if idx < len(tokens) and tokens[idx] == ')':
+                        idx += 1
+        else:
+            idx += 1
+
+    while idx < len(tokens):
+        parse()
+    return results
 
 def collect_rule_types(expr):
     tokens = tokenize(expr)
@@ -103,8 +144,11 @@ def collect_rule_types(expr):
 
 
 def evaluate_programs(csv_path):
-    correct = 0
-    incorrect = 0
+    full_correct = 0
+    full_incorrect = 0
+
+    subrule_hits = defaultdict(int)
+    subrule_totals = defaultdict(int)
 
     # Count how many times each rule appears and how often it's correct
     rule_type_stats = defaultdict(lambda: {'correct': 0, 'incorrect': 0})
@@ -117,22 +161,25 @@ def evaluate_programs(csv_path):
     start_index = 0
 
     def evaluate_block(block, task_name, start_index):
-        nonlocal correct, incorrect
+        nonlocal full_correct, full_incorrect
 
         norm_task = normalize_for_comparison(task_name)
         full_task = normalize_for_rule_types(task_name)
         rule_types = collect_rule_types(full_task)
         predictions = [normalize_program(row['program']) for row in block]
 
-        # First: exact match
+        for r in rule_types:
+            subrule_totals[r] += 1  # Always count appearances
+
+        # Exact match
         if norm_task in predictions:
             print(f"✅ Task: {norm_task}\n   Full match found at block {start_index}")
-            correct += 1
+            full_correct += 1
             for r in rule_types:
-                rule_type_stats[r]['correct'] += 1
+                subrule_hits[r] += 1
             return
 
-        # Try partial match based on common top-level combinator
+        # Top-level combinator partial match
         task_tokens = tokenize(full_task)
         if len(task_tokens) > 1 and task_tokens[0] == '(' and task_tokens[1] in ('AND', 'OR'):
             combinator = task_tokens[1]
@@ -144,18 +191,29 @@ def evaluate_programs(csv_path):
                     pred_subprograms = [normalize_for_comparison(s) for s in extract_subprograms(pred)]
                     matches = set(task_subprograms) & set(pred_subprograms)
                     if matches:
-                        print(f"⚠️  Task: {norm_task}\n   Partial match on combinator '{combinator}' at block {start_index}")
-                        incorrect += 1
+                        print(f"⚠️  Task: {norm_task}\n   Partial combinator match at block {start_index}")
                         for r in rule_types:
-                            rule_type_stats[r]['correct'] += 0.5
-                            rule_type_stats[r]['incorrect'] += 0.5
+                            if any(r in collect_rule_types(p) for p in pred_subprograms):
+                                subrule_hits[r] += 1
+                        full_incorrect += 1
                         return
 
-        # No match
+        # Interaction fallback
+        task_interactions = [normalize_for_comparison(s) for s in extract_interaction_subprograms(full_task)]
+        for pred in predictions:
+            pred_interactions = [normalize_for_comparison(s) for s in extract_interaction_subprograms(pred)]
+            matches = set(task_interactions) & set(pred_interactions)
+            if matches:
+                print(f"⚠️  Task: {norm_task}\n   Partial interaction match at block {start_index}")
+                for r in rule_types:
+                    if any(r in collect_rule_types(p) for p in pred_interactions):
+                        subrule_hits[r] += 1
+                full_incorrect += 1
+                return
+
+        # No match at all
         print(f"❌ Task: {norm_task}\n   No match in block {start_index}")
-        incorrect += 1
-        for r in rule_types:
-            rule_type_stats[r]['incorrect'] += 1
+        full_incorrect += 1
 
     for i, row in enumerate(reader):
         task = row['task_name']
@@ -174,15 +232,16 @@ def evaluate_programs(csv_path):
     if current_block:
         evaluate_block(current_block, current_task, start_index)
 
-    print(f"\n✅ Correct Blocks: {correct}")
-    print(f"❌ Incorrect Blocks: {incorrect}")
+    print(f"\n✅ Full Matches: {full_correct}")
+    print(f"❌ Full Failures: {full_incorrect}")
+    print(f"📈 Full Program Accuracy: {(full_correct / (full_correct + full_incorrect)):.2%}")
 
-    # Rule-wise summary
-    print("\n📊 Accuracy by DSL Primitive (including nested ones):")
-    for rule_type, stats in sorted(rule_type_stats.items()):
-        total = stats['correct'] + stats['incorrect']
-        accuracy = stats['correct'] / total if total > 0 else 0
-        print(f"{rule_type:25}  ✅ {stats['correct']:3}  ❌ {stats['incorrect']:3}  🔎 Accuracy: {accuracy:.2%}")
+    print("\n📊 Subrule Recognition Rate (per DSL primitive):")
+    for rule_type in sorted(subrule_totals.keys()):
+        hits = subrule_hits[rule_type]
+        total = subrule_totals[rule_type]
+        rate = hits / total if total > 0 else 0
+        print(f"{rule_type:25}  🎯 {hits:3} / {total:3}  📈 {rate:.2%}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate Zendo programs by task blocks.")
