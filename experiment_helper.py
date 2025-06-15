@@ -139,15 +139,15 @@ def task_set2zendodataset(tasks, model, dsl: DSL, cfg):
             print("Starting Inference...")
             # AT_LEAST_AND takes 3 arguments: INT, predicate1, predicate2, and a structure
             rule_prog = Function(
-                BasicPrimitive("EVEN_2"),
+                BasicPrimitive("EXACTLY_1"),
                 [
-                    Function(BasicPrimitive("IS_BLOCK"), []),
-                    Function(BasicPrimitive("IS_BLUE"), []),
+                    BasicPrimitive("constant_1", type_=INT, constant_evaluation=True),
+                    Function(BasicPrimitive("IS_UPSIDE_DOWN"), []),
                 ]
             )
             structure = torch.stack([torch.tensor([0, 1, 0, 1, 8, 1, 8, 8, 8, 8, 8, 293, 348, 193, 298], dtype=torch.long),
                                       torch.tensor([1, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 331, 398, 234, 305], dtype=torch.long),
-                                      torch.tensor([2, 2, 0, 1, 8, 8, 8, 8, 8, 8, 8, 331, 398, 234, 305], dtype=torch.long),
+                                      torch.tensor([2, 2, 0, 2, 8, 8, 8, 8, 8, 8, 8, 331, 398, 234, 305], dtype=torch.long),
                                       torch.tensor([3, 2, 2, 2, 8, 8, 8, 8, 8, 8, 8, 331, 398, 234, 305], dtype=torch.long),
                                       torch.tensor([7, 3, 3, 4, 7, 7, 7, 7, 7, 7, 7, -1, -1, -1, -1], dtype=torch.long),
                                       torch.tensor([7, 3, 3, 4, 7, 7, 7, 7, 7, 7, 7, -1, -1, -1, -1], dtype=torch.long),

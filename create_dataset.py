@@ -27,10 +27,10 @@ def remove_generate_valid_structure(query):
         return query
 
 # Define root data folders and corresponding CSV files
-data_dirs = ["training1", "training2", "training3", "training4", "training5", "training6",
-        "training7", "training8", "training9", "training10", "training11",
-        "training12", "training13", "training14", "training15", "training16"]
-
+# data_dirs = ["training1", "training2", "training3", "training4", "training5", "training6",
+#         "training7", "training8", "training9", "training10", "training11",
+#         "training12", "training13", "training14", "training15", "training16"]
+data_dirs = ["training20", "training21"]
 # Initialize list of tasks and ground truth programs
 tasks = []
 programs = []
@@ -45,7 +45,7 @@ rule_to_examples = defaultdict(list)
 
 # Step 1: collect all scenes and group them by rule
 data_root = Path("../Master_thesis")
-csv_root = Path("dataset")
+csv_root = Path("rules-dataset")
 
 for data_dir in data_dirs:
     csv_file = Path(data_dir) / "ground_truth.csv"
@@ -67,7 +67,7 @@ for data_dir in data_dirs:
 
             # Path to corresponding tensor file
             rule_idx = scene_name.split('_')[0]  # e.g., '10'
-            tensor_path = data_root / Path("torch") / Path(data_dir) / rule_idx / (scene_name + ".pt")
+            tensor_path = data_root / Path("rules") / Path(data_dir) / rule_idx / (scene_name + ".pt")
 
             if not tensor_path.exists():
                 print(f"Scene tensor {tensor_path} does not exist. Skipping...")
