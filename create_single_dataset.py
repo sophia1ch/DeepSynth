@@ -65,7 +65,7 @@ for data_dir in data_dirs:
 
             # Path to corresponding tensor file
             rule_idx = scene_name.split('_')[0]  # e.g., '10'
-            tensor_path = data_root / Path("rules-test") / Path(data_dir) / rule_idx / (scene_name + ".pt")
+            tensor_path = data_root / Path("rules-test") / Path(data_dir) / (scene_name + ".pt")
 
             if not tensor_path.exists():
                 print(f"Scene tensor {tensor_path} does not exist. Skipping...")
