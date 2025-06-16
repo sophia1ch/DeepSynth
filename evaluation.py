@@ -2,6 +2,7 @@ import csv
 import re
 import argparse
 from collections import defaultdict
+import matplotlib.pyplot as plt
 
 def normalize_task_name(s):
     return s.strip()
@@ -149,6 +150,15 @@ def evaluate_programs(csv_path):
 
     subrule_hits = defaultdict(int)
     subrule_totals = defaultdict(int)
+    tracked_atomic_predicates = {
+        "IS_RED", "IS_BLUE", "IS_YELLOW",
+        "IS_BLOCK", "IS_PYRAMID", "IS_WEDGE",
+        "IS_UPRIGHT", "IS_FLAT", "IS_UPSIDE_DOWN", "IS_CHEESECAKE",
+        "IS_HORIZONTAL", "IS_VERTICAL"
+    }
+
+    subrule_totals_attr = defaultdict(int)
+    subrule_hits_attr = defaultdict(int)
 
     # Count how many times each rule appears and how often it's correct
     rule_type_stats = defaultdict(lambda: {'correct': 0, 'incorrect': 0})
@@ -166,7 +176,19 @@ def evaluate_programs(csv_path):
         norm_task = normalize_for_comparison(task_name)
         full_task = normalize_for_rule_types(task_name)
         rule_types = collect_rule_types(full_task)
+        task_atoms = set(rt for rt in rule_types if rt in tracked_atomic_predicates)
         predictions = [normalize_program(row['program']) for row in block]
+        for atom in task_atoms:
+            subrule_totals_attr[atom] += 1
+
+        # Collect all predicted rule types across predictions
+        predicted_rule_types = set()
+        for p in predictions:
+            predicted_rule_types.update(collect_rule_types(p))
+
+        for atom in task_atoms:
+            if atom in predicted_rule_types:
+                subrule_hits_attr[atom] += 1
 
         for r in rule_types:
             subrule_totals[r] += 1  # Always count appearances
@@ -242,6 +264,38 @@ def evaluate_programs(csv_path):
         total = subrule_totals[rule_type]
         rate = hits / total if total > 0 else 0
         print(f"{rule_type:25}  🎯 {hits:3} / {total:3}  📈 {rate:.2%}")
+
+    print("\n📊 Atomic Predicate Recognition Rate (all tasks, regardless of rule structure):")
+    for rule_type in sorted(tracked_atomic_predicates):
+        hits = subrule_hits_attr[rule_type]
+        total = subrule_totals_attr[rule_type]
+        rate = hits / total if total > 0 else 0
+        print(f"{rule_type:25}  🎯 {hits:3} / {total:3}  📈 {rate:.2%}")
+
+    # Prepare atomic predicate accuracy data
+    atomic_predicates = sorted(tracked_atomic_predicates)
+    acc_data = []
+    for rule_type in atomic_predicates:
+        hits = subrule_hits_attr[rule_type]
+        total = subrule_totals_attr[rule_type]
+        rate = hits / total if total > 0 else 0
+        acc_data.append((rule_type, hits, total, rate))
+
+    # Sort by accuracy
+    acc_data.sort(key=lambda x: x[3], reverse=True)
+
+    # Plot
+    labels = [r[0] for r in acc_data]
+    accuracies = [r[3] for r in acc_data]
+
+    plt.figure(figsize=(12, 6))
+    bars = plt.bar(labels, accuracies, color=plt.cm.plasma([r[3] for r in acc_data]))
+    plt.ylim(0, 1)
+    plt.ylabel("Accuracy")
+    plt.title("Atomic Predicate Recognition Accuracy (All Tasks)")
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate Zendo programs by task blocks.")
