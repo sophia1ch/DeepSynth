@@ -1,7 +1,7 @@
 from collections import deque
 from heapq import heappush, heappop
 
-from pcfg import PCFG
+from grammar.pcfg import PCFG
 
 
 def a_star(G: PCFG):

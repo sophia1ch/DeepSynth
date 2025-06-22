@@ -1,5 +1,5 @@
-from create_programs import convert_prolog_to_dsl
-import dsl
+from data.create_programs import convert_prolog_to_dsl
+import grammar.dsl as dsl
 from DSL import zendo
 from experiment_helper import __get_type_request
 import torch 
@@ -28,7 +28,7 @@ dataset_size: int = 10000
 nb_epochs: int = 40
 batch_size: int = 16  # smaller batch size due to complex structures
 
-def load_zendo_dataset(pkl_path="zendo_dataset_tensors.pkl", program_path="zendo_programs.pkl"):
+def load_zendo_dataset(pkl_path="data/zendo_dataset_tensors.pkl", program_path="data/zendo_programs.pkl"):
     with open(pkl_path, "rb") as f:
         tasks = pickle.load(f)
     with open(program_path, "rb") as f:

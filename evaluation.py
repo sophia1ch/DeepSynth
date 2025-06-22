@@ -101,6 +101,43 @@ def extract_interaction_subprograms(expr):
         parse()
     return results
 
+def normalize_symmetric_expr(expr: str) -> str:
+    tokens = tokenize(expr)
+    if len(tokens) < 3 or tokens[0] != '(':
+        return expr.strip()
+
+    op = tokens[1]
+    symmetric_ops = {"AND", "OR", "TOUCHING", "POINTING", "ON_TOP_OF",
+                     "AT_LEAST_2", "EXACTLY_2", "EVEN_2", "ODD_2"}
+
+    if op not in symmetric_ops:
+        return expr.strip()
+
+    # Extract arguments
+    args = []
+    depth = 0
+    current = []
+    for t in tokens[2:-1]:  # Skip ( and )
+        if t == '(':
+            depth += 1
+        elif t == ')':
+            depth -= 1
+        if depth == 0 and current:
+            args.append(' '.join(current))
+            current = []
+        else:
+            current.append(t)
+        if depth == 0 and t not in ('(', ')'):
+            args.append(t)
+
+    if current:
+        args.append(' '.join(current))
+
+    # Normalize by sorting arguments
+    args = [a.strip() for a in args if a.strip()]
+    args.sort()
+    return f"({op} {' '.join(args)})"
+
 def collect_rule_types(expr):
     tokens = tokenize(expr)
     idx = 0
@@ -194,7 +231,9 @@ def evaluate_programs(csv_path):
             subrule_totals[r] += 1  # Always count appearances
 
         # Exact match
-        if norm_task in predictions:
+        norm_task_sym = normalize_symmetric_expr(norm_task)
+        predictions_sym = [normalize_symmetric_expr(p) for p in predictions]
+        if norm_task_sym in predictions_sym:
             print(f"✅ Task: {norm_task}\n   Full match found at block {start_index}")
             full_correct += 1
             for r in rule_types:
@@ -211,7 +250,9 @@ def evaluate_programs(csv_path):
                 pred_tokens = tokenize(pred)
                 if len(pred_tokens) > 1 and pred_tokens[0] == '(' and pred_tokens[1] == combinator:
                     pred_subprograms = [normalize_for_comparison(s) for s in extract_subprograms(pred)]
-                    matches = set(task_subprograms) & set(pred_subprograms)
+                    task_subprograms_sym = [normalize_symmetric_expr(s) for s in task_subprograms]
+                    pred_subprograms_sym = [normalize_symmetric_expr(s) for s in pred_subprograms]
+                    matches = set(task_subprograms_sym) & set(pred_subprograms_sym)
                     if matches:
                         print(f"⚠️  Task: {norm_task}\n   Partial combinator match at block {start_index}")
                         for r in rule_types:
@@ -221,9 +262,9 @@ def evaluate_programs(csv_path):
                         return
 
         # Interaction fallback
-        task_interactions = [normalize_for_comparison(s) for s in extract_interaction_subprograms(full_task)]
+        task_interactions = [normalize_symmetric_expr(s) for s in extract_interaction_subprograms(full_task)]
         for pred in predictions:
-            pred_interactions = [normalize_for_comparison(s) for s in extract_interaction_subprograms(pred)]
+            pred_interactions = [normalize_symmetric_expr(s) for s in extract_interaction_subprograms(pred)]
             matches = set(task_interactions) & set(pred_interactions)
             if matches:
                 print(f"⚠️  Task: {norm_task}\n   Partial interaction match at block {start_index}")

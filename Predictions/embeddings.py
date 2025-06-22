@@ -140,8 +140,4 @@ class RNNMatrixEmbedding(nn.Module):
         return e
 
     def forward(self, batch_IOs):
-        for ios in batch_IOs:
-            if len(ios) != 20:
-                print("Warning: IOs have length unequal to 20, which is not expected. Check your IOEncoder.", ios)
-        res = torch.stack([self._forward_IOs(IOs) for IOs in batch_IOs])
-        return res
+        return torch.stack([self._forward_IOs(IOs) for IOs in batch_IOs])

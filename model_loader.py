@@ -4,8 +4,8 @@ from experiment_helper import __get_type_request
 import torch
 from type_system import BOOL, INT, STRING, Arrow, List, Type
 from typing import Dict, Set, Tuple
-from cfg import CFG
-import dsl
+from grammar.cfg import CFG
+import grammar.dsl as dsl
 from DSL import list, deepcoder, flashfill, zendo
 from Predictions.IOencodings import FixedSizeEncoding, ZendoFixedSizeEncoding
 from Predictions.embeddings import RNNEmbedding, RNNMatrixEmbedding, SimpleEmbedding

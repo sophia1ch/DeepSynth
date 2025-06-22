@@ -1,5 +1,5 @@
 from program import *
-from pcfg import *
+from grammar.pcfg import *
 from Algorithms.sqrt_sampling import *
 from Algorithms.parallel import parallel_workers
 

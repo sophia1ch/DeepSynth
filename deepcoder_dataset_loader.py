@@ -5,7 +5,7 @@ from type_system import BOOL, INT, Arrow, List, Type
 from typing import Any, Tuple
 import typing
 from DSL import deepcoder
-import dsl
+import grammar.dsl as dsl
 from experiment_helper import filter_examples
 
 my_dsl = dsl.DSL(deepcoder.semantics, deepcoder.primitive_types, deepcoder.no_repetitions)

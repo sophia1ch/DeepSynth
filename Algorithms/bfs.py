@@ -1,5 +1,5 @@
 from program import *
-from pcfg import *
+from grammar.pcfg import *
 
 from collections import deque 
 from heapq import heappush, heappop, heappushpop

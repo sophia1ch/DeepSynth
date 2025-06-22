@@ -4,7 +4,7 @@ from collections import deque
 from heapq import heappush, heappop
 
 from program import Program, Function, Variable
-from pcfg import PCFG
+from grammar.pcfg import PCFG
 
 
 def heap_search_naive(G: PCFG):

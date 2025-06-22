@@ -4,8 +4,8 @@ import numpy as np
 
 import copy
 
-from pcfg import PCFG
-from pcfg_logprob import LogProbPCFG
+from grammar.pcfg import PCFG
+from grammar.pcfg_logprob import LogProbPCFG
 from program import Function, Variable, BasicPrimitive, New
 from type_system import BOOL
 
@@ -94,7 +94,6 @@ class RulesPredictor(nn.Module):
         '''
         reconstructs the grammars
         '''
-        print("reconstructing grammars")
         res = []
         for x in batch_predictions:
             rules = {}

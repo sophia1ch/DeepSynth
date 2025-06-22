@@ -1,7 +1,7 @@
 from math import sqrt
 from collections import deque
 
-from pcfg import PCFG
+from grammar.pcfg import PCFG
 
 def sqrt_sampling_with_sbsur(G: PCFG, batch_size: int = 100, start = None):
     """

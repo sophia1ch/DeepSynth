@@ -1,4 +1,4 @@
-from pcfg import *
+from grammar.pcfg import *
 from Algorithms.dfs import *
 
 import logging

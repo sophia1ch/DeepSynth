@@ -1,4 +1,4 @@
-from pcfg import PCFG
+from grammar.pcfg import PCFG
 import random
 import logging 
 import torch

@@ -1,4 +1,4 @@
-from pcfg import PCFG
+from grammar.pcfg import PCFG
 import bisect
 import numpy as np
 from typing import Dict, List, Optional, Tuple
