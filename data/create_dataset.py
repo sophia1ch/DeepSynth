@@ -2,6 +2,7 @@ import re
 import pickle
 import torch
 from pathlib import Path
+import random
 
 def split_csv_line(line):
     """
@@ -87,6 +88,42 @@ for data_dir in data_dirs:
 
 print(f"Loaded {len(rule_to_examples)} examples")
 # Add the examples to a task list grouped by rule
+# TODO: change for variable input length
+# task_list = defaultdict(list)
+# for identifier, example in rule_to_examples.items():
+#     parts = identifier.split('_')
+#     prefix = f"{parts[0]}_{parts[1]}"
+#     task_list[prefix].extend(example)
+# for rule_text, examples in task_list.items():
+#     if len(examples) < 4:
+#         print(f"Rule {rule_text} has less than 4 examples, skipping...")
+#         continue
+
+#     for _ in range(5):  # generate 5 variants per rule
+#         random.shuffle(examples)
+#         k = random.randint(2, min(20, len(examples)))  # number of examples for this task
+#         selected = examples[:k]
+
+#         # Ensure both positive and negative examples are included
+#         if not any(label == 1 for (_, label, _) in selected) or not any(label == 0 for (_, label, _) in selected):
+#             continue
+
+#         rule_query = selected[0][2]  # take query from first example
+#         tasks.append([(tensor, label) for (tensor, label, _) in selected])
+#         programs.append(rule_query)
+
+
+# print(f"Prepared {len(tasks)} tasks.", programs)
+
+# # Step 3: Save to pickle
+# with open("data/zendo_dataset_tensors.pkl", "wb") as f:
+#     pickle.dump(tasks, f)
+
+# with open("data/zendo_programs.pkl", "wb") as f:
+#     pickle.dump(programs, f)
+
+# print("Saved zendo_dataset_tensors.pkl and zendo_programs.pkl")
+
 task_list = defaultdict(list)
 for identifier, example in rule_to_examples.items():
     parts = identifier.split('_')
@@ -111,10 +148,10 @@ for rule_text, examples in task_list.items():
 print(f"Prepared {len(tasks)} tasks.", programs)
 
 # Step 3: Save to pickle
-with open("zendo_dataset_tensors.pkl", "wb") as f:
+with open("data/zendo_dataset_tensors.pkl", "wb") as f:
     pickle.dump(tasks, f)
 
-with open("zendo_programs.pkl", "wb") as f:
+with open("data/zendo_programs.pkl", "wb") as f:
     pickle.dump(programs, f)
 
 print("Saved zendo_dataset_tensors.pkl and zendo_programs.pkl")

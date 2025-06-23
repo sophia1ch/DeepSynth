@@ -1,7 +1,6 @@
 :- use_module(library(apply)).
 
 %%% Facts %%%
-orientation(vertical).
 orientation(flat).
 orientation(upright).
 orientation(upside_down).
@@ -23,7 +22,7 @@ interaction(pointing(_)).
 interaction(on_top_of(_)).
 %interaction(inside(_)).
 
-max_items(5).
+max_items(7).
 min_items(1).
 
 
@@ -198,7 +197,24 @@ assign_random_id(inside(_), MaxId, Id, inside(T)) :-
     T \= Id.
 
 item_has_attribute(Attr, item(_,C,S,O,I)) :-
-    Attr = C; Attr = S; Attr = O; (nonvar(I), I =.. [Attr|_]).
+    (
+        Attr = C
+    ;
+        Attr = S
+    ;
+        % Match vertical group
+        (Attr = vertical, (O = upright ; O = upside_down))
+    ;
+        % Match horizontal group
+        (Attr = horizontal, (O = flat ; O = cheesecake))
+    ;
+        % Direct match of orientation
+        Attr = O
+    ;
+        % Interaction check
+        nonvar(I),
+        I =.. [Attr | _]
+    ).
 
 item_has_two_attributes(A1, A2, Item) :-
     A2 \= grounded,

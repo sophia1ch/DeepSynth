@@ -54,7 +54,7 @@ However the number of programs grows extremely fast with size, making program sy
 git clone https://github.com/nathanael-fijalkow/DeepSynth.git
 
 # create your new env
-conda create -n deep_synth "python>=3.7" 
+conda create -n deep_synth "python=3.10" 
 # activate it
 conda activate deep_synth
 # install pip

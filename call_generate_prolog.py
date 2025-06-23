@@ -5,10 +5,6 @@ if __name__ == "__main__":
     n = int(sys.argv[1])
     query = sys.argv[2]
     path = sys.argv[3]
-    print("Running Prolog generator...")
-    print("N =", n)
-    print("Query =", query)
-    print("File =", path)
     result = generate_prolog_structure(n, query, path)
     if not result:
         print("No results returned from generate_prolog_structure", file=sys.stderr)

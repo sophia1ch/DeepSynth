@@ -65,7 +65,7 @@ for data_dir in data_dirs:
 
             # Path to corresponding tensor file
             rule_idx = scene_name.split('_')[0]  # e.g., '10'
-            tensor_path = data_root / Path("rules-test") / Path(data_dir) / (scene_name + ".pt")
+            tensor_path = data_root / Path("rules_test") / Path(data_dir) / (scene_name + ".pt")
 
             if not tensor_path.exists():
                 print(f"Scene tensor {tensor_path} does not exist. Skipping...")
@@ -110,7 +110,7 @@ for rule_text, examples in task_list.items():
 print(f"Prepared {len(tasks)} tasks.")
 
 # Step 3: Save to pickle
-with open("zendo_test_tensors.pkl", "wb") as f:
+with open("data/zendo_test_tensors.pkl", "wb") as f:
     pickle.dump(tasks, f)
 
 print("Saved zendo_dataset_tensors.pkl and zendo_programs.pkl")

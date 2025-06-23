@@ -727,33 +727,34 @@ def generate_prolog_structure(num_examples, query, prolog_file='rules/rules.pl')
     """
 
     prolog = Prolog()
+    prolog.consult(prolog_file)
 
-    # Ensure path uses forward slashes
-    prolog_path = Path(prolog_file).resolve().as_posix()
-    print("Consulting Prolog file:", prolog_path)
-    list(prolog.query(f'consult("{prolog_path}")'))
-
+    # Execute the random queries
     seen_structures = set()
     results = []
 
     def structure_to_hashable(structure):
+        """Convert a Prolog structure to a JSON-serializable hashable string."""
         try:
             return sha256(json.dumps(structure, sort_keys=True).encode()).hexdigest()
         except Exception:
-            return str(structure)
+            return str(structure)  # fallback
 
     attempts = 0
-    max_attempts = num_examples * 20
+    max_attempts = num_examples * 20  # to avoid infinite loops
 
     while len(results) < num_examples and attempts < max_attempts:
         attempts += 1
         try:
-            for szene in prolog.query(query, maxresult=1):
+            prolog_query = prolog.query(query)
+            for i, szene in enumerate(prolog_query):
                 structure = szene["Structure"]
-                key = structure_to_hashable(structure)
-                if key not in seen_structures:
-                    seen_structures.add(key)
+                hash_key = structure_to_hashable(structure)
+
+                if hash_key not in seen_structures:
+                    seen_structures.add(hash_key)
                     results.append(structure)
+
         except Exception as e:
             print(f"Prolog query failed: {e}")
             continue
@@ -762,6 +763,7 @@ def generate_prolog_structure(num_examples, query, prolog_file='rules/rules.pl')
         print(f"⚠️ Warning: Only {len(results)} unique structures could be generated after {attempts} attempts.")
 
     return results
+
 
 
 if __name__ == "__main__":

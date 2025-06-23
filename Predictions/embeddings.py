@@ -140,4 +140,6 @@ class RNNMatrixEmbedding(nn.Module):
         return e
 
     def forward(self, batch_IOs):
+        # TODO: change this for vatiable length inputs
+        # return [self._forward_IOs(IOs) for IOs in batch_IOs]
         return torch.stack([self._forward_IOs(IOs) for IOs in batch_IOs])

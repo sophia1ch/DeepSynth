@@ -2,39 +2,68 @@ from program import Function, BasicPrimitive
 
 def dsl_to_prolog(func: Function) -> str:
     """Recursively convert a DSL Function into a Prolog rule string."""
-    def unwrap(f):
-        return dsl_to_prolog(f) if isinstance(f, Function) else str(f.name if hasattr(f, "name") else f)
+    
+    atomic_map = {
+        'IS_RED': 'red',
+        'IS_BLUE': 'blue',
+        'IS_YELLOW': 'yellow',
+        'IS_BLOCK': 'block',
+        'IS_WEDGE': 'wedge',
+        'IS_PYRAMID': 'pyramid',
+        'IS_UPRIGHT': 'upright',
+        'IS_FLAT': 'flat',
+        'IS_UPSIDE_DOWN': 'upside_down',
+        'IS_VERTICAL': 'vertical',
+        'IS_HORIZONTAL': 'horizontal',
+        'IS_CHEESECAKE': 'cheesecake',
+    }
+
+    def unwrap(arg):
+        if isinstance(arg, Function):
+            return dsl_to_prolog(arg)
+        elif isinstance(arg, BasicPrimitive):
+            if arg.primitive in atomic_map:
+                return atomic_map[arg.primitive]
+            if arg.primitive == "EVEN":
+                return "even_number_of(Structure)"
+            if arg.primitive == "ODD":
+                return "odd_number_of(Structure)"
+            if arg.primitive.startswith("constant_"):
+                return arg.primitive.replace("constant_", "")
+            return arg.primitive
+        return str(arg)
 
     head = func.function
     args = func.arguments
 
-    if head.primitive == 'IS_RED':
-        return "red"
-    if head.primitive == 'IS_BLUE':
-        return "blue"
-    if head.primitive == 'IS_YELLOW':
-        return "yellow"
-    if head.primitive == 'IS_BLOCK':
-        return "block"
-    if head.primitive == 'IS_WEDGE':
-        return "wedge"
-    if head.primitive == 'IS_PYRAMID':
-        return "pyramid"
-    if head.primitive == 'IS_UPRIGHT':
-        return "upright"
-    if head.primitive == 'IS_FLAT':
-        return "flat"
-    if head.primitive == 'IS_UPSIDE_DOWN':
-        return "upside_down"
+    # Atomic: IS_COLOR or IS_SHAPE
+    if head.primitive in atomic_map:
+        return atomic_map[head.primitive]
 
+    # Constant value
     if head.primitive.startswith("constant_"):
         return head.primitive.replace("constant_", "")
 
     # Count-based predicates
-    if head.primitive in ['AT_LEAST_1', 'AT_LEAST_2', 'EXACTLY_1', 'EXACTLY_2']:
+    if head.primitive == 'AT_LEAST_1':
         count = unwrap(args[0])
-        preds = [unwrap(a) for a in args[1:]]
-        return f"{head.primitive.lower().split('_')[0]}({', '.join(preds)}, {count}, Structure)"
+        pred = unwrap(args[1])
+        return f"at_least({pred}, {count}, Structure)"
+    elif head.primitive == 'EXACTLY_1':
+        count = unwrap(args[0])
+        pred = unwrap(args[1])
+        return f"exactly({pred}, {count}, Structure)"
+    elif head.primitive == 'AT_LEAST_2':
+        count = unwrap(args[0])
+        pred1 = unwrap(args[1])
+        pred2 = unwrap(args[2])
+        return f"at_least({pred1}, {pred2}, {count}, Structure)"
+    elif head.primitive == 'EXACTLY_2':
+        count = unwrap(args[0])
+        pred1 = unwrap(args[1])
+        pred2 = unwrap(args[2])
+        return f"exactly({pred1}, {pred2}, {count}, Structure)"
+
 
     if head.primitive in ['EVEN', 'ODD']:
         return f"{head.primitive.lower()}_number_of(Structure)"
@@ -46,30 +75,37 @@ def dsl_to_prolog(func: Function) -> str:
         pred2 = unwrap(args[1])
         return f"{head.primitive.lower().replace('_2', '_number_of')}({pred1}, {pred2}, Structure)"
 
+    # Logical combinators
     if head.primitive in ['AND', 'OR']:
         left = unwrap(args[0])
         right = unwrap(args[1])
         return f"{head.primitive.lower()}([{left}, {right}])"
 
+    # Either-Or
     if head.primitive in ['EITHER', 'EITHER_OR']:
         n1 = unwrap(args[0])
         n2 = unwrap(args[1])
         return f"either_or({n1}, {n2}, Structure)"
 
-    if head.primitive in ['MORE_THAN']:
+    # Comparative
+    if head.primitive == 'MORE_THAN':
         p1 = unwrap(args[0])
         p2 = unwrap(args[1])
         return f"more_than({p1}, {p2}, Structure)"
 
+    # Interaction predicates
     if head.primitive in ['AT_LEAST_INTERACTION', 'EXACTLY_INTERACTION', 'EVEN_INTERACTION', 'ODD_INTERACTION']:
-        count = unwrap(args[0]) if head.primitive in ['AT_LEAST_INTERACTION', 'EXACTLY_INTERACTION'] else None
-        interaction_func = args[1]
+        has_count = head.primitive.startswith("AT_LEAST") or head.primitive.startswith("EXACTLY")
+        count = unwrap(args[0]) if has_count else None
+        interaction_func = args[1 if has_count else 0]
+
         inter_name = interaction_func.function.primitive.lower()
         pred1 = unwrap(interaction_func.arguments[0])
         pred2 = unwrap(interaction_func.arguments[1])
-        pred_call = f"{pred1}, {pred2}, {inter_name}, Structure"
-        if count:
-            return f"{head.primitive.lower()}({pred_call}, {count})"
-        return f"{head.primitive.lower()}({pred_call})"
+
+        if has_count:
+            return f"{head.primitive.lower()}({pred1}, {pred2}, {inter_name}, {count}, Structure)"
+        else:
+            return f"{head.primitive.lower()}({pred1}, {pred2}, {inter_name}, Structure)"
 
     raise ValueError(f"Unsupported primitive in DSL: {head.primitive}")

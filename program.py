@@ -19,6 +19,13 @@ if not hashseed:
     os.environ['PYTHONHASHSEED'] = '0'
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
+def strip_trailing_var0(prog):
+    if isinstance(prog, Function) and len(prog.arguments) > 0:
+        last_arg = prog.arguments[-1]
+        if isinstance(last_arg, Variable) and repr(last_arg) == "var0":
+            prog.arguments = prog.arguments[:-1]
+    return prog
+
 class Program:
     """
     Object that represents a program: a lambda term with basic primitives
@@ -159,8 +166,8 @@ class Function(Program):
             return s + ")"
 
     def eval(self, dsl, environment, i):
-        if i in self.evaluation:
-            return self.evaluation[i]
+        #if i in self.evaluation:
+        #   return self.evaluation[i]
         try:
             if len(self.arguments) == 0:
                 return self.function.eval(dsl, environment, i)
@@ -221,9 +228,9 @@ class Lambda(Program):
         return s
 
     def eval(self, dsl, environment, i):
-        if i in self.evaluation:
+        #if i in self.evaluation:
             # logging.debug('Already evaluated')
-            return self.evaluation[i]
+        #    return self.evaluation[i]
         # logging.debug('Not yet evaluated')
         try:
             result = lambda x: self.body.eval(dsl, (x, environment), i)
@@ -294,9 +301,9 @@ class New(Program):
         return format(self.body)
 
     def eval(self, dsl, environment, i):
-        if i in self.evaluation:
+        # if i in self.evaluation:
             # logging.debug('Already evaluated')
-            return self.evaluation[i]
+        #    return self.evaluation[i]
         # logging.debug('Not yet evaluated')
         try:
             result = self.body.eval(dsl, environment, i)

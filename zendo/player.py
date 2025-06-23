@@ -3,13 +3,15 @@ import json
 from pathlib import Path
 import subprocess
 from data.create_prolog import dsl_to_prolog
-from data.pieces2tensor import prolog_scene_to_tensor
+from data.pieces2tensor import prolog_strings_to_tensor
 from experiment_helper import task_set2zendodataset
 from experiments.run_experiment import gather_data
 import random
 import re
+from program import strip_trailing_var0
 import torch
 import sys
+import time
 
 PREDICATE_TO_IDX_VAL = {
     "IS_RED":       (1, 0),
@@ -50,6 +52,41 @@ def parse_either_or_args(rule_str: str):
         return int(match.group(1)), int(match.group(2))
     return None, None
 
+def call_prolog_subprocess_with_retries(n, query, prolog_file, retries=10, delay=2):
+    """
+    Calls the Prolog subprocess to generate a scene, with retry mechanism on failure.
+
+    :param n: Number of examples to generate
+    :param query: Prolog query string
+    :param prolog_file: Path to the Prolog file
+    :param retries: Number of retry attempts
+    :param delay: Delay between retries in seconds
+    :return: JSON-parsed result or None
+    """
+    for attempt in range(retries):
+        try:
+            abs_path = Path(prolog_file).resolve().as_posix()
+            result = subprocess.check_output(
+                [sys.executable, 'call_generate_prolog.py', str(n), query, abs_path],
+                timeout=6,
+                stderr=subprocess.STDOUT  # capture stderr too
+            )
+            return json.loads(result)
+        except subprocess.TimeoutExpired:
+            print(f"Timeout on attempt {attempt + 1}/{retries}")
+        except subprocess.CalledProcessError as e:
+            print(f"Subprocess failed on attempt {attempt + 1}/{retries}:\n", e.output.decode())
+        except json.JSONDecodeError as e:
+            print(f"JSON decode failed on attempt {attempt + 1}/{retries}:", e)
+        except Exception as e:
+            print(f"Unexpected error on attempt {attempt + 1}/{retries}:", e)
+
+        if attempt < retries - 1:
+            time.sleep(delay)
+
+    print("❌ All retry attempts failed.", query)
+    return None
+
 def call_prolog_subprocess(n, query, prolog_file):
     try:
         abs_path = Path(prolog_file).resolve().as_posix()
@@ -58,7 +95,6 @@ def call_prolog_subprocess(n, query, prolog_file):
             timeout=6,
             stderr=subprocess.STDOUT  # capture stderr too
         )
-        print("Raw Prolog output:", result.decode())  # Add this for debugging
         return json.loads(result)
     except subprocess.TimeoutExpired:
         print("Timeout: Prolog query took too long.")
@@ -91,15 +127,14 @@ class ZendoPlayer:
         print(f"✅ Player guessed correctly! Total correct guesses: {self.guessing_stones}")
 
     def guess_rule(self):
-        if self.guessing_stones == 0:
+        if self.guessing_stones <= 1:
             print("Not allowed to guess rule yet")
             return None
 
         dataset = task_set2zendodataset([["", self.examples]], self.model, self.dsl, self.cfg, use_model=True)
-        data = gather_data(dataset, 0)
+        data = gather_data(dataset, 0, True)
         self.guessing_stones -= 1
 
-        # Go through the candidate rules and return the first one not in self.wrong_rules
         for program, *_ in data[0][1]:
             if str(program) not in self.wrong_rules:
                 print("Guessing rule:", program)
@@ -130,33 +165,56 @@ class ZendoPlayer:
 
         top_rule, top_prob = valid_candidates[0]
         second_prob = valid_candidates[1][1] if len(valid_candidates) > 1 else 0.0
-        print("Top guessed rule:", top_rule)
+        propose_label = False
+        if top_prob > 1e-6:
+            propose_label = True
 
         inner_query = dsl_to_prolog(top_rule)
         prolog_str = f"generate_valid_structure([{inner_query}], Structure)"
-        print("Generated Prolog query:", prolog_str)
 
         try:
-            json_scene = call_prolog_subprocess(1, prolog_str, "rules/rules.pl")
-            new_input = prolog_scene_to_tensor(json_scene)
+            json_scene = call_prolog_subprocess_with_retries(10, prolog_str, "rules/rules.pl")
         except Exception as e:
             print("Failed to generate scene from Prolog query:", e)
             return None, None
+        if json_scene is None:
+            top_rule, second_prob = valid_candidates[1]
+            if second_prob > 1e-6:
+                propose_label = True
+            else:
+                propose_label = False
+            inner_query = dsl_to_prolog(top_rule)
+            prolog_str = f"generate_valid_structure([{inner_query}], Structure)"
+            try:
+                json_scene = call_prolog_subprocess_with_retries(10, prolog_str, "rules/rules.pl")
+            except Exception as e:
+                print("Failed to generate scene from Prolog query:", e)
+                return None, None
+        try:
+            new_inputs = prolog_strings_to_tensor(json_scene)
+        except Exception as e:
+            print("Failed to convert Prolog scene to tensor:", e)
+            return None, None
 
         # Evaluate input on top 3 rules
-        eval_results = []
-        for prog, *_ in valid_candidates[:3]:
-            try:
-                out = prog.eval(dsl=self.dsl, environment=(new_input, None), i=0)
-                eval_results.append(out)
-            except Exception as e:
-                print("Evaluation error:", e)
-                eval_results.append(False)
+        for new_input in new_inputs:
+            eval_results = []
+            for prog, _ in valid_candidates[:6]:
+                try:
+                    strip_trailing_var0(prog)
+                    prog_fn = prog.eval(dsl=self.dsl, environment=(None, None), i=0)  # only build the lambda
+                    out = prog_fn(new_input)
+                    eval_results.append(out)
+                except Exception as e:
+                    print("Evaluation error:", e)
+                    eval_results.append(False)
 
-        print("Evaluation results:", eval_results)
-        if len(set(eval_results)) > 1:
-            print("New input discriminates between top rules!")
-            return new_input, False
+            # print("Evaluation results:", eval_results)
+            if len(set(eval_results)) > 1:
+                print("New input discriminates between top rules!")
+                if propose_label:
+                    return new_input, True
+                return new_input, None
 
         print("New input did not discriminate. Trying next fallback strategy.")
         return None, None
@@ -176,7 +234,6 @@ class ZendoPlayer:
 
         top_rule, top_prob = valid_candidates[0]
         second_prob = valid_candidates[1][1] if len(valid_candidates) > 1 else 0.0
-        print("Top guessed rule:", top_rule)
 
         preds = extract_predicates(str(top_rule))
         

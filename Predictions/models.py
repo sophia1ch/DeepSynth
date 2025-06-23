@@ -15,10 +15,8 @@ device = 'cpu'
 def guess_output_size(latent_encoder, H):
     test_input = torch.zeros(H)
     with torch.no_grad():
-        print("guess_output_size: test_input", test_input.size())
         output = latent_encoder(test_input)
         output_size = output.size()[0]
-        print("guess_output_size: output", output.size())
     return output_size
 
 
@@ -45,9 +43,7 @@ class RulesPredictor(nn.Module):
 
         # Guess output size of NN
         H = IOEmbedder.output_dimension
-        print("IOEmbedder.output_dimension", H)
         output_size = guess_output_size(latent_encoder, H)
-        print("output_size", output_size)
 
         self.loss = torch.nn.BCELoss(reduction='mean')
 
@@ -59,13 +55,11 @@ class RulesPredictor(nn.Module):
             nn.Sigmoid(),
         )
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
-        print("RulesPredictor initialized with output dimension:", self.output_dimension)
 
     def metrics(self, **kwargs):
         return {}
 
     def init_RuleToIndex(self):
-        print("init RuleToIndex")
         self.output_dimension = 0
 
         index = 0
@@ -85,6 +79,9 @@ class RulesPredictor(nn.Module):
         '''
         x = self.IOEmbedder.forward(batch_IOs)
         x = self.latent_encoder(x)
+        # TODO: change this for vatiable length inputs
+        # x = [self.latent_encoder(task_emb) for task_emb in x]
+        # x = torch.stack(x)
         # print("size of x", x.size())
         # x = torch.mean(x, -2)
         x = self.final_layer(x)

@@ -106,7 +106,6 @@ def __buildintlist_model(dsl: dsl.DSL, max_program_depth: int, nb_arguments_max:
 
 def __buildintlist_zendo_model(dsl: dsl.DSL, max_program_depth: int, size_max: int, size_hidden: int, embedding_output_dimension: int, number_layers_RNN: int, autoload=False) -> Tuple[CFG, RulesPredictor]:
     type_request = Arrow(List(zendo.PIECE), BOOL)
-    print("Type request:", type_request)
     cfg = dsl.DSL_to_CFG(
         type_request, max_program_depth=max_program_depth)
 

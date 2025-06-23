@@ -1,11 +1,13 @@
-from DSL import zendo
-import grammar.dsl as dsl
 import torch
 import csv
 import os
 import pickle
-
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 from experiments.run_experiment import gather_data, list_algorithms
+from DSL import zendo
+import grammar.dsl as dsl
 from model_loader import __buildintlist_zendo_model
 from experiment_helper import task_set2zendodataset
 
@@ -42,7 +44,7 @@ for algo_index in range(len(list_algorithms)):
 
     print("Starting...")
     for splits in [2]:
-        filename = f"{save_folder}/algo_{algo_name} {splits} CPUs_dataset_{dataset_name}_results_semantic.csv"
+        filename = f"{save_folder}/algo_{algo_name} {splits} CPUs_dataset_{dataset_name}_results_semantic_true.csv"
         if os.path.exists(filename):
             print("Already exists:", filename)
             continue

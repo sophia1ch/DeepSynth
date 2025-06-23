@@ -1,3 +1,4 @@
+import concurrent
 from cons_list import cons_list2list
 import typing
 import ray
@@ -91,7 +92,7 @@ def normalize_program_structure(prog: Program) -> Program:
 
     return prog  # Variable or BasicPrimitive
 
-def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCFG, algo_index: int) -> List[Tuple[Program, float, float, int, float, float]]:
+def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCFG, algo_index: int, top_rule=False) -> List[Tuple[Program, float, float, int, float, float]]:
     '''
     Run the algorithm until either timeout or 1M programs, and for each program record probability and time of output
     return program, search_time, evaluation_time, nb_programs, cumulative_probability, probability
@@ -114,7 +115,13 @@ def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCF
         # Searching for the next program
         search_time -= time.perf_counter()
         try:
-            program = next(gen)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(next, gen)
+                try:
+                    program = future.result(timeout=5)  # seconds allowed for one call
+                except concurrent.futures.TimeoutError:
+                    print(f"⚠ Generator timed out after 5 seconds at program #{nb_programs}")
+                    break
         except:
             search_time += time.perf_counter()
             logging.debug(
@@ -163,12 +170,13 @@ def run_algorithm(is_correct_program: Callable[[Program, bool], bool], pcfg: PCF
             logging.debug('tested {} programs'.format(nb_programs))
 
         if is_match:
-            print("\tprogram found=", program_r)
             # logging.debug("\nSolution found: %s" % program)
             # logging.debug('[NUMBER OF PROGRAMS]: %s' % nb_programs)
             # logging.debug("[SEARCH TIME]: %s" % search_time)
             # logging.debug("[EVALUATION TIME]: %s" % evaluation_time)
             # logging.debug("[TOTAL TIME]: %s" % (evaluation_time + search_time))
+            if top_rule:
+                return [(program_r, search_time, evaluation_time, nb_programs, cumulative_probability, probability)]
             found_programs.append((
                 program_r,
                 search_time,
@@ -373,7 +381,7 @@ def run_algorithm_parallel(is_correct_program: Callable[[Program, bool], bool], 
     return None, grammar_split_time, search_times, evaluation_times, nb_programs, cumulative_probabilities, 0
 
 
-def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: int) -> typing.List[Tuple[str, List[Tuple[Program, float, float, int, float, float]]]]:
+def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: int, top_rule=False) -> typing.List[Tuple[str, List[Tuple[Program, float, float, int, float, float]]]]:
     algorithm, _, _ = list_algorithms[algo_index]
     logging.info('\n## Running: %s' % algorithm.__name__)
     output = []
@@ -382,7 +390,7 @@ def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: in
     pbar.set_postfix_str(f"{successes} solved")
     for task_name, pcfg, is_correct_program in dataset:
         print("## Task:", task_name)
-        data = run_algorithm(is_correct_program, pcfg, algo_index)
+        data = run_algorithm(is_correct_program, pcfg, algo_index, top_rule)
         if not data:
             print("\tsolution=", task_name)
             print("\ttype request=", pcfg.type_request())

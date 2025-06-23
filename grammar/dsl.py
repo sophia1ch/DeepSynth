@@ -41,7 +41,6 @@ class DSL:
             P = BasicPrimitive(name, type_=INT, constant_evaluation=n+1)
             self.list_primitives.append(P)
         self.primitive_lookup = {p.primitive: p for p in self.list_primitives}
-        print("DSL initialised with primitive types", self.primitive_lookup)
     
     def primitive_types(self):
         set_basic_types = set()
@@ -141,9 +140,7 @@ class DSL:
         Constructs a CFG from a DSL imposing bounds on size of the types
         and on the maximum program depth
         """
-        print("instantiate_polymorphic_types with upper_bound_type_size", upper_bound_type_size, self.list_primitives)
         self.instantiate_polymorphic_types(upper_bound_type_size)
-        print("After instantiation, list_primitives", self.list_primitives)
 
         if isinstance(type_request, Arrow):
             return_type = type_request.returns()
