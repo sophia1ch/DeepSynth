@@ -1,0 +1,31 @@
+[
+  {
+    "task_index": 0,
+    "true_program": "(OR (AT_LEAST_1 3 IS_BLOCK) (ODD_1 IS_HORIZONTAL))",
+    "guesses": [
+      "None",
+      "None",
+      "(ODD_1 IS_HORIZONTAL)",
+      "(OR (ODD_1 IS_HORIZONTAL) EVEN)",
+      "(OR (ODD_1 IS_HORIZONTAL) (ODD_1 IS_RED))",
+      "None",
+      "(OR (AT_LEAST_1 3 IS_BLOCK) (ODD_1 IS_HORIZONTAL))"
+    ],
+    "num_examples": 15,
+    "solved": true
+  },
+  {
+    "task_index": 1,
+    "true_program": "(AT_LEAST_1 3 IS_BLUE)",
+    "guesses": [
+      "None",
+      "None",
+      "None",
+      "None",
+      "None",
+      "(AT_LEAST_1 3 IS_BLUE)"
+    ],
+    "num_examples": 14,
+    "solved": true
+  }
+]
