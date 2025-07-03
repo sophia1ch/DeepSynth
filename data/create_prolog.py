@@ -14,8 +14,10 @@ def dsl_to_prolog(func: Function) -> str:
         'IS_FLAT': 'flat',
         'IS_UPSIDE_DOWN': 'upside_down',
         'IS_VERTICAL': 'vertical',
-        'IS_HORIZONTAL': 'horizontal',
         'IS_CHEESECAKE': 'cheesecake',
+        'IS_DOORSTOP': 'doorstop',
+        'IS_GROUNDED': 'grounded',
+        'IS_UNGROUNDED': 'ungrounded',
     }
 
     def unwrap(arg):
@@ -57,22 +59,58 @@ def dsl_to_prolog(func: Function) -> str:
         count = unwrap(args[0])
         pred1 = unwrap(args[1])
         pred2 = unwrap(args[2])
+        if pred1 == 'IS_GROUNDED':
+            return f"at_least_interaction({pred2}, grounded, {count}, Structure)"
+        if pred2 == 'IS_GROUNDED':
+            return f"at_least_interaction({pred1}, grounded, {count}, Structure)"
+        if pred1 == 'IS_UNGROUNDED':
+            return f"at_least_interaction({pred2}, ungrounded, {count}, Structure)"
+        if pred2 == 'IS_UNGROUNDED':
+            return f"at_least_interaction({pred1}, ungrounded, {count}, Structure)"
         return f"at_least({pred1}, {pred2}, {count}, Structure)"
     elif head.primitive == 'EXACTLY_2':
         count = unwrap(args[0])
         pred1 = unwrap(args[1])
         pred2 = unwrap(args[2])
+        if pred1 == 'IS_GROUNDED':
+            return f"exactly_interaction({pred2}, grounded, {count}, Structure)"
+        if pred2 == 'IS_GROUNDED':
+            return f"exactly_interaction({pred1}, grounded, {count}, Structure)"
+        if pred1 == 'IS_UNGROUNDED':
+            return f"exactly_interaction({pred2}, ungrounded, {count}, Structure)"
+        if pred2 == 'IS_UNGROUNDED':
+            return f"exactly_interaction({pred1}, ungrounded, {count}, Structure)"
         return f"exactly({pred1}, {pred2}, {count}, Structure)"
 
 
     if head.primitive in ['EVEN', 'ODD']:
         return f"{head.primitive.lower()}_number_of(Structure)"
+    if head.primitive in ['ALL_THREE_SHAPES', 'ALL_THREE_COLORS']:
+        return f"{head.primitive.lower()}(Structure)"
     if head.primitive in ['EVEN_1', 'ODD_1']:
         pred = unwrap(args[0])
         return f"{head.primitive.lower().replace('_1', '_number_of')}({pred}, Structure)"
+    if head.primitive == 'ZERO_1':
+        pred = unwrap(args[0])
+        return f"{head.primitive.lower().replace('_1', '')}({pred}, Structure)"
+    if head.primitive == 'ZERO_2':
+        pred1 = unwrap(args[0])
+        pred2 = unwrap(args[1])
+        return f"{head.primitive.lower().replace('_2', '')}({pred1}, {pred2}, Structure)"
+    if head.primitive == 'EXCLUSIVELY':
+        pred = unwrap(args[0])
+        return f"{head.primitive.lower()}({pred}, Structure)"
     if head.primitive in ['EVEN_2', 'ODD_2']:
         pred1 = unwrap(args[0])
         pred2 = unwrap(args[1])
+        if pred1 == 'IS_GROUNDED':
+            return f"{head.primitive.lower().replace('_2', '_number_of_interaction')}({pred2}, grounded, Structure)"
+        if pred2 == 'IS_GROUNDED':
+            return f"{head.primitive.lower().replace('_2', '_number_of_interaction')}({pred1}, grounded, Structure)"
+        if pred1 == 'IS_UNGROUNDED':
+            return f"{head.primitive.lower().replace('_2', '_number_of_interaction')}({pred2}, ungrounded, Structure)"
+        if pred2 == 'IS_UNGROUNDED':
+            return f"{head.primitive.lower().replace('_2', '_number_of_interaction')}({pred1}, ungrounded, Structure)"
         return f"{head.primitive.lower().replace('_2', '_number_of')}({pred1}, {pred2}, Structure)"
 
     # Logical combinators
@@ -103,9 +141,13 @@ def dsl_to_prolog(func: Function) -> str:
         pred1 = unwrap(interaction_func.arguments[0])
         pred2 = unwrap(interaction_func.arguments[1])
 
-        if has_count:
-            return f"{head.primitive.lower()}({pred1}, {pred2}, {inter_name}, {count}, Structure)"
+        if head.primitive in ['EVEN_INTERACTION', 'ODD_INTERACTION']:
+            func_name = f"{head.primitive.lower().replace('_interaction', '_number_of_interaction')}"
         else:
-            return f"{head.primitive.lower()}({pred1}, {pred2}, {inter_name}, Structure)"
+            func_name = head.primitive.lower()
 
+        if has_count:
+            return f"{func_name}({pred1}, {pred2}, {inter_name}, {count}, Structure)"
+        else:
+            return f"{func_name}({pred1}, {pred2}, {inter_name}, Structure)"
     raise ValueError(f"Unsupported primitive in DSL: {head.primitive}")

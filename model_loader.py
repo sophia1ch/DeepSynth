@@ -295,3 +295,55 @@ def build_flashfill_generic_model(max_program_depth: int = 7, autoload: bool = T
             print("Loaded weights.")
 
     return flashfill_dsl, cfg_dict, model
+
+def __build_generic_zendo_model(dsl: dsl.DSL, max_program_depth: int, size_max: int, size_hidden: int, embedding_output_dimension: int, number_layers_RNN: int, autoload=False) -> Tuple[CFG, RulesPredictor]:
+    nb_arguments_max = 2
+    type_request = Arrow(List(zendo.PIECE), BOOL)
+    dsl.instantiate_polymorphic_types()
+    requests = dsl.all_type_requests(nb_arguments_max)
+    print("Requests:", requests)
+    cfg_dict = {}
+    for type_req in requests:
+        # Skip if it contains a list list
+        if any(ground_type.size() >= 3 for ground_type in type_req.list_ground_types()):
+            print(f"Skipping type {type_req} because it contains a list of lists.")
+            continue
+        try:
+            cfg_dict[type_req] = dsl.DSL_to_CFG(
+                type_req, max_program_depth=max_program_depth)
+        except Exception as e:
+            continue
+    print("Requests:", cfg_dict.keys())
+    cfg = dsl.DSL_to_CFG(
+        type_request, max_program_depth=max_program_depth)
+
+    IOEncoder = ZendoFixedSizeEncoding(
+        size_max=11,
+        lexicon=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    )
+
+    IOEmbedder = SimpleEmbedding(
+        IOEncoder=IOEncoder,
+        output_dimension=64,
+        size_hidden=64,
+    )
+    latent_encoder = torch.nn.Sequential(
+        __block__(64 * IOEncoder.output_dimension, 128, torch.nn.ReLU()),
+        __block__(128, 64, torch.nn.ReLU()),
+    )
+
+    model = BigramsPredictor(
+        cfg_dictionary=cfg_dict,
+        primitive_types={x: x.type for x in dsl.list_primitives},
+        IOEncoder=IOEncoder,
+        IOEmbedder=IOEmbedder,
+        latent_encoder=latent_encoder,
+    )
+
+    if autoload:
+        weights_file = "variable+simple+bigrams_zendo.weights"
+        if os.path.exists(weights_file):
+            model.load_state_dict(torch.load(weights_file))
+            print("Loaded weights.")
+
+    return cfg, model

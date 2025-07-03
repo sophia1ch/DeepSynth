@@ -73,6 +73,9 @@ def count_interaction_predicate(pred, structure_tensor):
 def is_grounded():
     return lambda piece: piece[ON_TOP_IDX].item() == 8
 
+def is_ungrounded():
+    return lambda piece: piece[ON_TOP_IDX].item() != 8
+
 def has_color_idx(color_idx):
     return lambda piece: piece[COLOR_IDX].item() == color_idx
 
@@ -82,8 +85,37 @@ def has_shape_idx(shape_idx):
 def has_orient_idx(orient_idx):
     return lambda piece: piece[ORIENT_IDX].item() == orient_idx
 
+def all_three_shapes():
+    def inner(structure):
+        try:
+            shapes_present = set()
+            for piece in valid_pieces(structure):
+                shape = piece[SHAPE_IDX].item()
+                shapes_present.add(shape)
+            return all(shape in shapes_present for shape in [0, 1, 2])  # 0=block, 1=wedge, 2=pyramid
+        except Exception as e:
+            print(f"all_three_shapes error: {e}")
+            return False
+    return inner
+
+def all_three_colors():
+    def inner(structure):
+        try:
+            colors_present = set()
+            for piece in valid_pieces(structure):
+                color = piece[COLOR_IDX].item()
+                colors_present.add(color)
+            return all(color in colors_present for color in [0, 1, 2])  # 0=red, 1=blue, 2=yellow
+        except Exception as e:
+            print(f"all_three_colors error: {e}")
+            return False
+    return inner
+
 def or_pred(pred1, pred2):
     return lambda piece: pred1(piece) or pred2(piece)
+
+def and_pred(pred1, pred2):
+    return lambda piece: pred1(piece) and pred2(piece)
 
 def at_least_1(n, pred):
     def inner(structure):
@@ -156,6 +188,24 @@ def odd_2(pred1, pred2):
 def odd_interaction(pred):
     def inner(structure):
         return count_interaction_predicate(pred, structure) % 2 == 1
+    return inner
+
+def exclusively(pred):
+    def inner(structure):
+        pieces = len(valid_pieces(structure))
+        return count_unary_predicate(pred, structure) == pieces
+    return inner
+
+def zero_1(pred):
+    def inner(structure):
+        count = count_unary_predicate(pred, structure)
+        return count == 0
+    return inner
+
+def zero_2(pred1, pred2):
+    def inner(structure):
+        count = count_conjunctive_unary_predicates(pred1, pred2, structure)
+        return count == 0
     return inner
 
 def pointing_predicate(pred1, pred2):
@@ -275,7 +325,10 @@ semantics = {
     'ODD':  odd(),
     'ODD_1': lambda pred: odd_1(pred),
     'ODD_2': lambda pred1: lambda pred2: odd_2(pred1, pred2),
+    'ZERO_1': lambda pred: zero_1(pred),
+    'ZERO_2': lambda pred1: lambda pred2: zero_2(pred1, pred2),
 
+    'EXCLUSIVELY': lambda pred: exclusively(pred),
     'EVEN_INTERACTION': lambda interaction: even_interaction(interaction),
     'ODD_INTERACTION': lambda interaction: odd_interaction(interaction),
     
@@ -290,9 +343,14 @@ semantics = {
     'TOUCHING': lambda pred1: lambda pred2: touching_predicate(pred1, pred2),
     'POINTING': lambda pred1: lambda pred2: pointing_predicate(pred1, pred2),
     'ON_TOP_OF': lambda pred1: lambda pred2: on_top_of_predicate(pred1, pred2),
+
+    # Unary predicates
+    'ALL_THREE_SHAPES': all_three_shapes(),
+    'ALL_THREE_COLORS': all_three_colors(),
     
     # Basic unary predicates
     'IS_GROUNDED': is_grounded(),
+    'IS_UNGROUNDED': is_ungrounded(),
     'IS_RED': has_color_idx(0),
     'IS_BLUE': has_color_idx(1),
     'IS_YELLOW': has_color_idx(2),
@@ -301,10 +359,10 @@ semantics = {
     'IS_PYRAMID': has_shape_idx(2),
     'IS_UPRIGHT': has_orient_idx(0),
     'IS_UPSIDE_DOWN': has_orient_idx(1),
-    'IS_FLAT': has_orient_idx(2),
+    'IS_DOORSTOP': and_pred(has_orient_idx(2), has_shape_idx(1)),
     'IS_CHEESECAKE': has_orient_idx(3),
     'IS_VERTICAL': or_pred(has_orient_idx(0), has_orient_idx(1)),
-    'IS_HORIZONTAL': or_pred(has_orient_idx(2), has_orient_idx(3)),
+    'IS_FLAT': or_pred(has_orient_idx(2), has_orient_idx(3)),
 }
 
 # ---- DSL Type Signatures ----
@@ -315,6 +373,7 @@ primitive_types = {
 
     # Basic predicates (no input required, already curried functions)
     "IS_GROUNDED": UNARY_PRED,
+    "IS_UNGROUNDED": UNARY_PRED,
     "IS_RED": UNARY_PRED,
     "IS_BLUE": UNARY_PRED,
     "IS_YELLOW": UNARY_PRED,
@@ -325,7 +384,7 @@ primitive_types = {
     "IS_FLAT": UNARY_PRED,
     "IS_UPSIDE_DOWN": UNARY_PRED,
     "IS_CHEESECAKE": UNARY_PRED,
-    "IS_HORIZONTAL": UNARY_PRED,
+    "IS_DOORSTOP": UNARY_PRED,
     "IS_VERTICAL": UNARY_PRED,
 
     # Composed unary rules
@@ -347,6 +406,10 @@ primitive_types = {
     "ODD_2": Arrow(UNARY_PRED, Arrow(UNARY_PRED, RULE)),
     "ODD_INTERACTION": Arrow(INTERACTION_PRED, RULE),
 
+    "EXCLUSIVELY": Arrow(UNARY_PRED, RULE),
+
+    "ZERO_1": Arrow(UNARY_PRED, RULE),
+    "ZERO_2": Arrow(UNARY_PRED, Arrow(UNARY_PRED, RULE)),
 
     "MORE_THAN": Arrow(UNARY_PRED, Arrow(UNARY_PRED, RULE)),
     "EITHER_OR": Arrow(INT, Arrow(INT, RULE)),
@@ -355,6 +418,9 @@ primitive_types = {
     "TOUCHING": INTERACTION,
     "POINTING": INTERACTION,
     "ON_TOP_OF": INTERACTION,
+
+    "ALL_THREE_SHAPES": RULE,
+    "ALL_THREE_COLORS": RULE,
 }
 
 no_repetitions = set()

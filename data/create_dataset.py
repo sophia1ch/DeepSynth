@@ -31,7 +31,7 @@ def remove_generate_valid_structure(query):
 # data_dirs = ["training1", "training2", "training3", "training4", "training5", "training6",
 #         "training7", "training8", "training9", "training10", "training11",
 #         "training12", "training13", "training14", "training15", "training16"]
-data_dirs = ["training20", "training21"]
+data_dirs = ["training19", "training20", "training21", "training22", "training24"]
 # Initialize list of tasks and ground truth programs
 tasks = []
 programs = []
@@ -94,26 +94,39 @@ print(f"Loaded {len(rule_to_examples)} examples")
 #     parts = identifier.split('_')
 #     prefix = f"{parts[0]}_{parts[1]}"
 #     task_list[prefix].extend(example)
+
 # for rule_text, examples in task_list.items():
 #     if len(examples) < 4:
 #         print(f"Rule {rule_text} has less than 4 examples, skipping...")
 #         continue
 
-#     for _ in range(5):  # generate 5 variants per rule
-#         random.shuffle(examples)
-#         k = random.randint(2, min(20, len(examples)))  # number of examples for this task
-#         selected = examples[:k]
+#     positives = [ex for ex in examples if ex[1] == 1]
+#     negatives = [ex for ex in examples if ex[1] == 0]
+#     if not positives or not negatives:
+#         print(f"Rule {rule_text} does not have both classes, skipping...")
+#         continue
 
-#         # Ensure both positive and negative examples are included
-#         if not any(label == 1 for (_, label, _) in selected) or not any(label == 0 for (_, label, _) in selected):
+#     for _ in range(5):  # generate 5 variants per rule
+#         max_possible = min(20, len(positives) + len(negatives))
+#         if max_possible < 2:
 #             continue
 
-#         rule_query = selected[0][2]  # take query from first example
+#         k = random.randint(2, max_possible)  # total number of examples
+#         num_pos = random.randint(1, min(k - 1, len(positives)))  # at least 1 positive
+#         num_neg = k - num_pos
+
+#         if num_neg > len(negatives):
+#             continue  # not enough negatives
+
+#         selected = random.sample(positives, num_pos) + random.sample(negatives, num_neg)
+#         random.shuffle(selected)
+
+#         rule_query = selected[0][2]
 #         tasks.append([(tensor, label) for (tensor, label, _) in selected])
 #         programs.append(rule_query)
 
 
-# print(f"Prepared {len(tasks)} tasks.", programs)
+# print(f"Prepared {len(tasks)} tasks.")
 
 # # Step 3: Save to pickle
 # with open("data/zendo_dataset_tensors.pkl", "wb") as f:
@@ -145,7 +158,7 @@ for rule_text, examples in task_list.items():
     tasks.append([(tensor, label) for (tensor, label, _) in task_examples])
     programs.append(rule_query)
 
-print(f"Prepared {len(tasks)} tasks.", programs)
+print(f"Prepared {len(tasks)} tasks.")
 
 # Step 3: Save to pickle
 with open("data/zendo_dataset_tensors.pkl", "wb") as f:

@@ -207,7 +207,7 @@ class ZendoFixedSizeEncoding():
                  lexicon,
                  ) -> None:
         self.size_max = size_max  # size_max should be 11 (size of each row)
-        self.output_dimension = size_max * 7  # 7x11 matrix
+        self.output_dimension = size_max * 7 + 1  # 7x11 matrix + 1 label
         self.symbolToIndex = {i: i for i in range(9)}  # Lexicon: categorical values 0-8
         self.lexicon_size = len(self.symbolToIndex)
         self.max_value = 640  # Max value for continuous data (if any)
@@ -233,8 +233,8 @@ class ZendoFixedSizeEncoding():
         if len(inputs) > 7:
             print("Warning: Too many inputs, truncating to 7.", inputs, output)
         for input_ in inputs:
-            embedded_input = self._encode_single_arg(input_)
-            res.append(embedded_input)
+            encoded_input = self._encode_single_arg(input_)
+            res.append(encoded_input)
 
         # Encoding the output (Boolean)
         output_tensor = torch.tensor([output], dtype=torch.long)
@@ -248,6 +248,7 @@ class ZendoFixedSizeEncoding():
         '''
         res = []
         for IO in IOs:
-            res.append(self.encode_IO(IO))
+            encoded = self.encode_IO(IO)
+            res.append(encoded)
         res = torch.stack(res)
         return res

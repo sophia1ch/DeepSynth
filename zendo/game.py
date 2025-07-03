@@ -1,5 +1,8 @@
 from experiments.run_experiment import canonicalize_program, normalize_program_structure
 from program import strip_trailing_var0
+from zendo.game_master import GameMaster
+from zendo.player import ZendoPlayerInterface
+from zendo.States import GameState, Turn, step
 
 
 def play_game(gm, player, return_guesses=False):
@@ -15,14 +18,18 @@ def play_game(gm, player, return_guesses=False):
     # Interaction rounds
     while len(player.examples) < 30:
         print("---------New Round---------")
-        proposed_input, proposed_label = player.propose_input()
+        proposed_input, proposed_label, _ = player.propose_input()
         if proposed_input is None:
             print("WARNING: Player couldn't generate a new example.")
             next_example = gm.get_next_example()
-            if next_example:
+            if next_example is not None:
                 print("FIX: Gamemaster provides new example.")
                 player.observe(next_example)
-            continue
+                continue
+            else:
+                won = False
+                print("No more examples available, player lost.")
+                break
         print(f"2: Player proposed input and label")
         label = gm.label_input(proposed_input)
         print(f"3: Gamemaster says: {label}")
@@ -42,7 +49,6 @@ def play_game(gm, player, return_guesses=False):
         else:
             print(f"4: Player's guess was incorrect: {guessed_rule}, \nCorrect rule: {gm.true_program}")
             if guessed_rule is not None:
-                player.wrong_guess(guessed_rule)
                 example = gm.disprove_guess(guessed_rule)
                 if example:
                     print("4a: Gamemaster disproved the guess with an example.")
@@ -73,3 +79,24 @@ def play_game(gm, player, return_guesses=False):
     if return_guesses:
         return guesses, won
 
+def play_game_state(gm: GameMaster, players: list[ZendoPlayerInterface]) -> GameState:
+    state = GameState(
+        examples=[],
+        guesses={i: [] for i in range(len(players))},
+        examples_proposed={i: 0 for i in range(len(players))},
+        player_guess_tokens={i: 0 for i in range(len(players))},
+        current_turn=Turn.PROPOSE,
+        last_action=None,
+        correct_program=gm.true_program,
+    )
+
+    for ex in gm.initial_examples():
+        for p in players:
+            p.observe(ex)
+        state.examples.append(ex)
+
+    while state.current_turn != Turn.END:
+        state = step(state, players, gm)
+
+    print("Finished: ", state.game_over_reason)
+    return state

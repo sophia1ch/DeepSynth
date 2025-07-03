@@ -389,7 +389,6 @@ def gather_data(dataset: typing.List[Tuple[str, PCFG, Callable]], algo_index: in
     pbar = tqdm.tqdm(total=len(dataset))
     pbar.set_postfix_str(f"{successes} solved")
     for task_name, pcfg, is_correct_program in dataset:
-        print("## Task:", task_name)
         data = run_algorithm(is_correct_program, pcfg, algo_index, top_rule)
         if not data:
             print("\tsolution=", task_name)

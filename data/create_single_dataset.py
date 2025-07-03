@@ -27,7 +27,7 @@ def remove_generate_valid_structure(query):
         return query
 
 # Define root data folders and corresponding CSV files
-data_dirs = ["training23"]
+data_dirs = ["training23", "training25"]
 
 # Initialize list of tasks and ground truth programs
 tasks = []
@@ -65,7 +65,7 @@ for data_dir in data_dirs:
 
             # Path to corresponding tensor file
             rule_idx = scene_name.split('_')[0]  # e.g., '10'
-            tensor_path = data_root / Path("rules_test") / Path(data_dir) / (scene_name + ".pt")
+            tensor_path = data_root / Path("rules-test") / Path(data_dir) / (scene_name + ".pt")
 
             if not tensor_path.exists():
                 print(f"Scene tensor {tensor_path} does not exist. Skipping...")
@@ -113,4 +113,4 @@ print(f"Prepared {len(tasks)} tasks.")
 with open("data/zendo_test_tensors.pkl", "wb") as f:
     pickle.dump(tasks, f)
 
-print("Saved zendo_dataset_tensors.pkl and zendo_programs.pkl")
+print("Saved zendo_test_tensors.pkl")

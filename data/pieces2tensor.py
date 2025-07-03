@@ -12,7 +12,6 @@ MAX_OBJECTS = 7
 
 def prolog_strings_to_tensor(structures):
     converted_items = []
-
     for items in structures:
         rows = []
         actions = {}

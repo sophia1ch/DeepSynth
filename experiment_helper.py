@@ -259,8 +259,8 @@ def __get_type__(el) -> Type:
 
 
 def __get_type_request(examples):
-    print("experiment_helper.py: __get_type_request called with examples:", examples[0])
-    input, output = examples[0]
+    print("experiment_helper.py: __get_type_request called with examples:", examples)
+    input, output = examples
     type_req = __get_type__(output)
     for el in input[:-1][::-1]:
         type_req = Arrow(__get_type__(el), type_req)

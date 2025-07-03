@@ -13,10 +13,11 @@ device = 'cpu'
 
 
 def guess_output_size(latent_encoder, H):
-    test_input = torch.zeros(H)
+    print("Guessing output size for latent encoder", latent_encoder, "with input size", H)
+    test_input = torch.zeros(1, H)
     with torch.no_grad():
         output = latent_encoder(test_input)
-        output_size = output.size()[0]
+        output_size = output.size(1)
     return output_size
 
 
@@ -243,6 +244,7 @@ class BigramsPredictor(nn.Module):
 
         H = IOEncoder.output_dimension * self.IOEmbedder.output_dimension
         output_size = guess_output_size(latent_encoder, H)
+        print("Output size for BigramsPredictor:", output_size)
 
         self.symbolToIndex = {
             symbol: index for index, symbol in enumerate(self.primitive_types.keys())
@@ -339,7 +341,9 @@ class BigramsPredictor(nn.Module):
                 else:
                     # We still need to normalise probabilities
                     # Since all derivations aren't possible
+                    epsilon = 1e-8
                     total = sum(np.exp(rules[S][P][1].item()) for P in rules[S])
+                    total = max(total, epsilon)
                     to_add = np.log(1 / total)
                     for O in rules[S]:
                         rules[S][O] = rules[S][O][0], rules[S][O][1] + to_add

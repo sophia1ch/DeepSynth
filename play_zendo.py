@@ -1,10 +1,11 @@
 
-# Choose a task from the dataset
 import json
 import pickle
+import os
+import gc
+import torch
 from DSL import zendo
 from data.create_programs import convert_prolog_to_dsl
-from experiment_helper import task_set2zendodataset
 from grammar import dsl
 from model_loader import __buildintlist_zendo_model
 from zendo.game import play_game
@@ -24,25 +25,52 @@ base_symbols = ["red", "blue", "yellow", "pyramid", "wedge", "block", "upright",
 max_objects = 7
 zendo_dsl = dsl.DSL(zendo.semantics, zendo.primitive_types, None)
 cfg, model = __buildintlist_zendo_model(dsl=zendo_dsl, max_program_depth=15, size_max=11, size_hidden=64, embedding_output_dimension=77, number_layers_RNN=1, autoload=True)
-results = []
+output_path = "zendo_play_results_2.jsonl"  # Use JSONL (newline-delimited JSON)
+already_done = set()
 
-for task_index, (name, examples) in enumerate(tasks[:2]):
+if os.path.exists(output_path):
+    with open(output_path, "r") as f:
+        for line in f:
+            try:
+                entry = json.loads(line)
+                already_done.add(entry["task_index"])
+            except:
+                continue
+
+for task_index, (name, examples) in enumerate(tasks):
+    if task_index in already_done:
+        print(f"Skipping already processed task {task_index}")
+        continue
+
     print(f"\n=== Running task {task_index} ===")
-    gm = GameMaster(true_program=convert_prolog_to_dsl(name, cfg), dataset=examples.copy(), zendo_dsl=zendo_dsl, cfg=cfg)
-    player = ZendoPlayer(cfg=cfg, dsl=zendo_dsl, model=model)
 
-    guesses, won = play_game(gm, player, return_guesses=True)
-    print(f"Task {task_index} - Guesses: {len(guesses)}")
-    results.append({
-        "task_index": task_index,
-        "true_program": str(gm.true_program),
-        "guesses": [str(g) for g in guesses],
-        "num_examples": len(player.examples),
-        "solved": won
-    })
+    try:
+        gm = GameMaster(true_program=convert_prolog_to_dsl(name, cfg), dataset=examples.copy(), zendo_dsl=zendo_dsl, cfg=cfg)
+        player = ZendoPlayer(player_id=0, cfg=cfg, dsl=zendo_dsl, model=model)
 
-# Save results to file
-with open("zendo_play_results.json", "w") as f:
-    json.dump(results, f, indent=2)
+        guesses, won = play_game(gm, player, return_guesses=True)
+        print(f"Task {task_index} - Guesses: {len(guesses)}")
 
-print(f"\n✅ Saved results for {len(results)} tasks to 'zendo_play_results.json'")
+        result = {
+            "task_index": task_index,
+            "true_program": str(gm.true_program),
+            "guesses": [str(g) for g in guesses],
+            "num_examples": len(player.examples),
+            "solved": won
+        }
+
+        with open(output_path, "a") as f:
+            f.write(json.dumps(result) + "\n")
+
+    except Exception as e:
+        print(f"❌ Task {task_index} failed: {e}")
+        continue
+
+    # 💡 Clean up memory explicitly
+    del gm
+    del player
+    del guesses
+    torch.cuda.empty_cache()
+    gc.collect()
+
+print(f"\n✅ Appended all results to '{output_path}'")

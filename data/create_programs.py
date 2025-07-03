@@ -49,7 +49,10 @@ def convert_prolog_to_dsl(prolog_query, cfg):
     # First, parse the Prolog query
     predicate, args = parse_prolog_query(prolog_query)
     
-    # Example of mapping predicate to DSL functions
+    if predicate == 'all_three_shapes':
+        return Function(cfg.lookup['ALL_THREE_SHAPES'], [])
+    if predicate == 'all_three_colors':
+        return Function(cfg.lookup['ALL_THREE_COLORS'], [])
     if predicate == 'at_least':
         if len(args) == 4:  # at_least with color, shape, and count
             pred1, pred2, count, _ = args
@@ -89,7 +92,33 @@ def convert_prolog_to_dsl(prolog_query, cfg):
             ])
         else:
             raise ValueError(f"Invalid number of arguments for exactly: {len(args)}")
-    
+
+    elif predicate == 'zero':
+        if len(args) == 2:
+            pred, _ = args
+            # Create Function with valid Program arguments
+            return Function(cfg.lookup['ZERO_1'], [
+                Function(cfg.lookup[f'IS_{pred.upper()}'], []),
+            ])
+        elif len(args) == 3:
+            pred1, pred2, _ = args
+            return Function(cfg.lookup['ZERO_2'], [
+                Function(cfg.lookup[f'IS_{pred1.upper()}'], []), 
+                Function(cfg.lookup[f'IS_{pred2.upper()}'], []), 
+            ])
+        else:
+            raise ValueError(f"Invalid number of arguments for zero: {len(args)}")
+
+    elif predicate == 'exclusively':
+        if len(args) == 2:  # exactly with color, shape, and count
+            pred, _ = args
+            # Create Function with valid Program arguments
+            return Function(cfg.lookup['EXCLUSIVELY'], [ 
+                Function(cfg.lookup[f'IS_{pred.upper()}'], []),
+            ])
+        else:
+            raise ValueError(f"Invalid number of arguments for exclusively: {len(args)}")
+
     elif predicate == 'and':
         # Handle 'and' predicate by combining two rules
         subquery0 = args[0].strip('[]')
@@ -147,6 +176,14 @@ def convert_prolog_to_dsl(prolog_query, cfg):
     
     elif predicate == 'at_least_interaction':
         # Handle 'at_least_interaction' predicate
+        if len(args) == 4:
+            pred, interaction, count, _ = args
+            count = int(count)  # Convert count to integer
+            return Function(cfg.lookup['AT_LEAST_2'], [
+                cfg.lookup[f'constant_{count}'],
+                Function(cfg.lookup[f'IS_{interaction.upper()}'], []),
+                Function(cfg.lookup[f'IS_{pred.upper()}'], []),
+            ])
         if len(args) == 5:
             pred1, pred2, interaction, count, _ = args
             count = int(count)  # Convert count to integer
@@ -163,6 +200,14 @@ def convert_prolog_to_dsl(prolog_query, cfg):
     
     elif predicate == 'exactly_interaction':
         # Handle 'exactly_interaction' predicate
+        if len(args) == 4:
+            pred, interaction, count, _ = args
+            count = int(count)  # Convert count to integer
+            return Function(cfg.lookup['EXACTLY_2'], [
+                cfg.lookup[f'constant_{count}'],
+                Function(cfg.lookup[f'IS_{interaction.upper()}'], []),
+                Function(cfg.lookup[f'IS_{pred.upper()}'], []),
+            ])
         if len(args) == 5:
             pred1, pred2, interaction, count, _ = args
             count = int(count)  # Convert count to integer
@@ -179,6 +224,12 @@ def convert_prolog_to_dsl(prolog_query, cfg):
         
     elif predicate == 'odd_number_of_interaction':
         # Handle 'odd_number_of_interaction' predicate
+        if len(args) == 3:
+            pred, interaction, _ = args
+            return Function(cfg.lookup['ODD_2'], [
+                Function(cfg.lookup[f'IS_{interaction.upper()}'], []),
+                Function(cfg.lookup[f'IS_{pred.upper()}'], []),
+            ])
         if len(args) == 4:
             pred1, pred2, interaction, _ = args
             return Function(cfg.lookup['ODD_INTERACTION'], [
@@ -193,6 +244,12 @@ def convert_prolog_to_dsl(prolog_query, cfg):
         
     elif predicate == 'even_number_of_interaction':
         # Handle 'even_number_of_interaction' predicate
+        if len(args) == 3:
+            pred, interaction, _ = args
+            return Function(cfg.lookup['EVEN_2'], [
+                Function(cfg.lookup[f'IS_{interaction.upper()}'], []),
+                Function(cfg.lookup[f'IS_{pred.upper()}'], []),
+            ])
         if len(args) == 4:
             pred1, pred2, interaction, _ = args
             return Function(cfg.lookup['EVEN_INTERACTION'], [
