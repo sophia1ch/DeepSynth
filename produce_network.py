@@ -48,7 +48,7 @@ tasks, prolog_programs = load_zendo_dataset()
 base_symbols = ["red", "blue", "yellow", "pyramid", "wedge", "block", "upright", "flat", "upside_down", "cheesecake", "vertical"]
 max_objects = 7
 zendo_dsl = dsl.DSL(zendo.semantics, zendo.primitive_types, None)
-cfg, model = __buildintlist_zendo_model(dsl=zendo_dsl, max_program_depth=15, size_max=11, size_hidden=64, embedding_output_dimension=77, number_layers_RNN=1)
+cfg, model = __buildintlist_zendo_model(dsl=zendo_dsl, max_program_depth=15, size_max=11, size_hidden=64, embedding_output_dimension=78, number_layers_RNN=1)
 programs = [convert_prolog_to_dsl(p, cfg) for p in prolog_programs]
 if len(tasks) != len(programs):
     print(programs, len(tasks), "tasks and", len(programs), "programs found.")
